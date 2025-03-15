@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import MainLayout from '@/components/layout/MainLayout';
 import { motion } from 'framer-motion';
-import { FaEnvelope, FaArrowLeft, FaHome } from 'react-icons/fa';
+import { FaEnvelope, FaArrowLeft, FaHome, FaSpinner } from 'react-icons/fa';
 import { supabase } from '@/lib/supabase';
 
-export default function ConfirmationPage() {
+// Create a separate component that uses useSearchParams
+function ConfirmationContent() {
   const searchParams = useSearchParams();
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
@@ -176,4 +177,40 @@ export default function ConfirmationPage() {
       </div>
     </MainLayout>
   );
-} 
+}
+
+// Loading fallback component
+function ConfirmationLoading() {
+  return (
+    <MainLayout>
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-md mx-auto">
+          <div className="flex justify-center items-center mb-8">
+            <h1 className="text-3xl font-bold text-center bg-gradient-to-r from-blue-500 to-purple-600 text-transparent bg-clip-text">
+              Verify Email
+            </h1>
+          </div>
+          
+          <div className="bg-blue-50 dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+            <div className="p-8 text-center">
+              <div className="flex flex-col items-center">
+                <FaSpinner className="animate-spin text-4xl text-blue-500 mb-4" />
+                <h2 className="text-xl font-bold mb-2">Loading</h2>
+                <p className="text-gray-600 dark:text-gray-400">Please wait...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </MainLayout>
+  );
+}
+
+// Main component that wraps the content in a Suspense boundary
+export default function ConfirmationPage() {
+  return (
+    <Suspense fallback={<ConfirmationLoading />}>
+      <ConfirmationContent />
+    </Suspense>
+  );
+}
