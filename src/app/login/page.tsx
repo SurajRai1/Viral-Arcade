@@ -14,6 +14,7 @@ type ErrorsState = {
   password?: string;
   form?: string;
   suggestSignup?: boolean;
+  [key: string]: string | boolean | undefined; // Add index signature to allow string indexing
 };
 
 export default function LoginPage() {
