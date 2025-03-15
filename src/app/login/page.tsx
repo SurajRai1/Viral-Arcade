@@ -8,13 +8,21 @@ import { motion } from 'framer-motion';
 import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowLeft, FaGamepad } from 'react-icons/fa';
 import { supabase } from '@/lib/supabase';
 
+// Define a more specific type for the errors state
+type ErrorsState = {
+  email?: string;
+  password?: string;
+  form?: string;
+  suggestSignup?: boolean;
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<ErrorsState>({});
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
@@ -40,7 +48,7 @@ export default function LoginPage() {
   }, []);
 
   const validateForm = () => {
-    const newErrors: Record<string, string> = {};
+    const newErrors: ErrorsState = {};
     
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
