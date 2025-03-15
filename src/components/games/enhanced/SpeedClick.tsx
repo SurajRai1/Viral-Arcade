@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { FaPlay, FaRedo, FaTrophy, FaShareAlt, FaInfoCircle, FaVolumeUp, FaVolumeMute, FaSkull } from 'react-icons/fa';
@@ -140,6 +140,63 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
     setObstacles(newObstacles);
   };
   
+  // Finish the game - defined with useCallback to avoid dependency issues
+  const finishGame = useCallback(() => {
+    setGameState('finished');
+    
+    // Calculate clicks per second
+    const finalCps = clicks;
+    setCps(finalCps);
+    
+    // Check if it's a new high score
+    if (gameMode === 'normal' && finalCps > highScore && !gameOver) {
+      setHighScore(finalCps);
+      setIsNewHighScore(true);
+      localStorage.setItem('speedclick_highscore', finalCps.toString());
+      
+      // Play success sound and trigger confetti
+      if (!isMuted && successSoundRef.current) {
+        try {
+          successSoundRef.current.play().catch(e => console.error("Audio play failed:", e));
+        } catch (e) {
+          console.error("Failed to play success sound:", e);
+        }
+        
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      }
+    } else if (gameMode === 'rage' && finalCps > rageHighScore && !gameOver) {
+      setRageHighScore(finalCps);
+      setIsNewHighScore(true);
+      localStorage.setItem('speedclick_rage_highscore', finalCps.toString());
+      
+      // Play success sound and trigger confetti
+      if (!isMuted && successSoundRef.current) {
+        try {
+          successSoundRef.current.play().catch(e => console.error("Audio play failed:", e));
+        } catch (e) {
+          console.error("Failed to play success sound:", e);
+        }
+        
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      }
+    } else {
+      setIsNewHighScore(false);
+    }
+    
+    // Show results after a short delay
+    setTimeout(() => {
+      setShowResults(true);
+    }, 500);
+  }, [clicks, gameMode, highScore, rageHighScore, gameOver, isMuted]);
+  
   // Game timer
   useEffect(() => {
     if (gameState !== 'playing') return;
@@ -154,7 +211,7 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
       // Game finished
       finishGame();
     }
-  }, [timeLeft, gameState]);
+  }, [timeLeft, gameState, finishGame]);
   
   // Start the game
   const startGame = (mode: 'normal' | 'rage' = 'normal') => {
@@ -219,63 +276,6 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
       
       setClicks(prev => prev + 1);
     }
-  };
-  
-  // Finish the game
-  const finishGame = () => {
-    setGameState('finished');
-    
-    // Calculate clicks per second
-    const finalCps = clicks;
-    setCps(finalCps);
-    
-    // Check if it's a new high score
-    if (gameMode === 'normal' && finalCps > highScore && !gameOver) {
-      setHighScore(finalCps);
-      setIsNewHighScore(true);
-      localStorage.setItem('speedclick_highscore', finalCps.toString());
-      
-      // Play success sound and trigger confetti
-      if (!isMuted && successSoundRef.current) {
-        try {
-          successSoundRef.current.play().catch(e => console.error("Audio play failed:", e));
-        } catch (e) {
-          console.error("Failed to play success sound:", e);
-        }
-        
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-      }
-    } else if (gameMode === 'rage' && finalCps > rageHighScore && !gameOver) {
-      setRageHighScore(finalCps);
-      setIsNewHighScore(true);
-      localStorage.setItem('speedclick_rage_highscore', finalCps.toString());
-      
-      // Play success sound and trigger confetti
-      if (!isMuted && successSoundRef.current) {
-        try {
-          successSoundRef.current.play().catch(e => console.error("Audio play failed:", e));
-        } catch (e) {
-          console.error("Failed to play success sound:", e);
-        }
-        
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-      }
-    } else {
-      setIsNewHighScore(false);
-    }
-    
-    // Show results after a short delay
-    setTimeout(() => {
-      setShowResults(true);
-    }, 500);
   };
   
   // Reset the game

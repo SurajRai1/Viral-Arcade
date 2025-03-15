@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FaTimes, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, 
-  FaTrophy, FaInfoCircle, FaShareAlt, FaHeart, FaThumbsUp,
-  FaDownload, FaRedo, FaQuestion, FaChevronLeft, FaChevronRight,
-  FaLightbulb, FaFacebook, FaTwitter, FaWhatsapp, FaEnvelope
+  FaHeart, FaQuestion, FaChevronLeft, FaChevronRight,
+  FaLightbulb, FaFacebook, FaTwitter, FaWhatsapp, FaEnvelope,
+  FaShareAlt
 } from 'react-icons/fa';
 import dynamic from 'next/dynamic';
 import { ComponentType } from 'react';

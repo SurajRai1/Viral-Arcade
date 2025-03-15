@@ -16,7 +16,7 @@ interface GameCardProps {
   isTrending?: boolean;
   category?: string;
   lastPlayed?: string;
-  highScore?: number;
+  highScore?: number | null;
   onPlay?: (id: string) => void;
 }
 
