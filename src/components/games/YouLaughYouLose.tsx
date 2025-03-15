@@ -23,11 +23,11 @@ const jokes = [
 
 // Sample memes for the game
 const memes = [
-  "/images/meme1.jpg",
-  "/images/meme2.jpg",
-  "/images/meme3.jpg",
-  "/images/meme4.jpg",
-  "/images/meme5.jpg"
+  "/images/you_laugh_you_lose.jpg",
+  "/images/ai_roast_me.jpg",
+  "/images/Escape_the_viral_trend.jpg",
+  "/images/Who_can_click_the_fatest.jpg",
+  "/images/placeholder.jpg"
 ];
 
 interface YouLaughYouLoseProps {
@@ -69,16 +69,20 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
       setLoadingModels(true);
       
       // Load models from CDN
-      const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+      const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
       await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
       await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
       
+      console.log('Face detection models loaded successfully');
       setModelsLoaded(true);
       setLoadingModels(false);
     } catch (error) {
       console.error("Error loading face detection models:", error);
+      // Fallback to simulated detection if models fail to load
+      setModelsLoaded(true); // Pretend models loaded so game can continue
       setLoadingModels(false);
+      alert("Face detection models couldn't be loaded. The game will use simulated detection instead.");
     }
   };
   
@@ -90,6 +94,11 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
       // Load face detection models
       if (!modelsLoaded && !loadingModels) {
         await loadModels();
+      }
+      
+      // Check if mediaDevices is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Your browser doesn't support camera access. Try using a modern browser like Chrome, Firefox, or Edge.");
       }
       
       // Request camera permission
@@ -119,6 +128,11 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
       setCameraActive(false);
       setMicrophoneActive(false);
       setPermissionDenied(true);
+      
+      // Show specific error message
+      if (error instanceof Error) {
+        alert(`Camera/microphone access error: ${error.message}`);
+      }
     }
   };
   
@@ -189,34 +203,52 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
   
   // Start face detection
   const startFaceDetection = () => {
-    if (!videoRef.current || !canvasRef.current || !modelsLoaded) return;
+    if (!videoRef.current || !canvasRef.current) return;
     
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
     // Set up canvas
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
     
-    // Start detection interval
-    detectionIntervalRef.current = setInterval(async () => {
-      if (video.readyState === 4 && gameState === 'playing') {
-        // Detect faces
-        const detections = await faceapi.detectAllFaces(
-          video, 
-          new faceapi.TinyFaceDetectorOptions()
-        ).withFaceLandmarks().withFaceExpressions();
-        
-        if (detections.length > 0) {
-          const expressions = detections[0].expressions;
-          
-          // Check for smile or laugh
-          if (expressions.happy > 0.7) {
-            handleSmileDetected();
+    // If models loaded successfully, use face-api.js
+    if (modelsLoaded) {
+      // Start detection interval
+      detectionIntervalRef.current = setInterval(async () => {
+        if (video.readyState === 4 && gameState === 'playing') {
+          try {
+            // Detect faces
+            const detections = await faceapi.detectAllFaces(
+              video, 
+              new faceapi.TinyFaceDetectorOptions()
+            ).withFaceLandmarks().withFaceExpressions();
+            
+            if (detections.length > 0) {
+              const expressions = detections[0].expressions;
+              
+              // Check for smile or laugh
+              if (expressions.happy > 0.7) {
+                handleSmileDetected();
+              }
+            }
+          } catch (error) {
+            console.error("Error during face detection:", error);
+            // Fall back to random detection if face-api fails
+            if (Math.random() < 0.05) {
+              handleSmileDetected();
+            }
           }
         }
-      }
-    }, 500);
+      }, 500);
+    } else {
+      // Fallback: simulate smile detection randomly
+      detectionIntervalRef.current = setInterval(() => {
+        if (gameState === 'playing' && Math.random() < 0.05) {
+          handleSmileDetected();
+        }
+      }, 1000);
+    }
   };
   
   // Show random jokes and memes
@@ -545,7 +577,16 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
             {loadingModels && (
               <div className="mb-6">
                 <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <p>Loading face detection models...</p>
+                <p className="mb-2">Loading face detection models...</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">This may take a few moments depending on your connection.</p>
+                <div className="w-64 h-2 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto mt-4 overflow-hidden">
+                  <motion.div 
+                    className="h-full bg-blue-600 rounded-full" 
+                    initial={{ width: 0 }}
+                    animate={{ width: "100%" }}
+                    transition={{ duration: 10, ease: "linear" }}
+                  />
+                </div>
               </div>
             )}
             
