@@ -5,8 +5,19 @@ import MainLayout from '@/components/layout/MainLayout';
 import { motion } from 'framer-motion';
 import { FaTrophy, FaMedal, FaGamepad, FaCalendarAlt } from 'react-icons/fa';
 
+// Define types for leaderboard entries and game IDs
+type LeaderboardEntry = {
+  id: number;
+  username: string;
+  score: number;
+  date: string;
+};
+
+// Define valid game IDs as a type
+type GameId = 'meme-quiz' | 'ai-roast-me' | 'would-you-rather' | 'lie-detector';
+
 // Sample leaderboard data
-const leaderboardData = {
+const leaderboardData: Record<GameId, LeaderboardEntry[]> = {
   'meme-quiz': [
     { id: 1, username: 'MemeKing', score: 9850, date: '2023-06-15' },
     { id: 2, username: 'DankMaster', score: 9720, date: '2023-06-18' },
@@ -58,14 +69,14 @@ const leaderboardData = {
 };
 
 const games = [
-  { id: 'meme-quiz', name: 'Meme Quiz', color: 'bg-blue-600' },
-  { id: 'ai-roast-me', name: 'AI Roast Me', color: 'bg-red-600' },
-  { id: 'would-you-rather', name: 'Would You Rather?', color: 'bg-purple-600' },
-  { id: 'lie-detector', name: 'Lie Detector', color: 'bg-green-600' },
+  { id: 'meme-quiz' as GameId, name: 'Meme Quiz', color: 'bg-blue-600' },
+  { id: 'ai-roast-me' as GameId, name: 'AI Roast Me', color: 'bg-red-600' },
+  { id: 'would-you-rather' as GameId, name: 'Would You Rather?', color: 'bg-purple-600' },
+  { id: 'lie-detector' as GameId, name: 'Lie Detector', color: 'bg-green-600' },
 ];
 
 export default function LeaderboardsPage() {
-  const [selectedGame, setSelectedGame] = useState('meme-quiz');
+  const [selectedGame, setSelectedGame] = useState<GameId>('meme-quiz');
   const [timeframe, setTimeframe] = useState('all-time');
 
   // Get the current leaderboard based on selected game
