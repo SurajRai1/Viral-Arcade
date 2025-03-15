@@ -11,7 +11,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     // Use our custom callback URL for email confirmations
-    redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
+    flowType: 'pkce',
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
   }
 });
 
