@@ -1,0 +1,7 @@
+{
+  "buildCommand": "next build",
+  "ignoreCommand": "eslint --quiet",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next"
+} 
