@@ -139,8 +139,9 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
   // Set up audio analysis for laugh detection
   const setupAudioAnalysis = (stream: MediaStream) => {
     try {
-      // Fix TypeScript warning by using a proper type assertion
-      const AudioContext = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      // Fix TypeScript error by properly typing AudioContext
+      const AudioContext = window.AudioContext || 
+        ((window as any).webkitAudioContext as typeof window.AudioContext);
       audioContextRef.current = new AudioContext();
       
       const source = audioContextRef.current.createMediaStreamSource(stream);
@@ -285,24 +286,8 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
     }
   };
   
-  // Handle when a smile is detected
-  const handleSmileDetected = useCallback(() => {
-    if (gameState === 'playing' && !smileDetected) {
-      setSmileDetected(true);
-      endGame();
-    }
-  }, [gameState, smileDetected, endGame]);
-  
-  // Handle when a laugh is detected
-  const handleLaughDetected = useCallback(() => {
-    if (gameState === 'playing' && !laughDetected) {
-      setLaughDetected(true);
-      endGame();
-    }
-  }, [gameState, laughDetected, endGame]);
-  
   // End the game
-  const endGame = () => {
+  const endGame = useCallback(() => {
     setGameState('result');
     
     // Calculate score based on time survived
@@ -349,7 +334,23 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
         setShowAccountPrompt(true);
       }, 1500);
     }
-  };
+  }, [timeLeft, hasPlayedFreeGame, isEmbedded]);
+  
+  // Handle when a smile is detected
+  const handleSmileDetected = useCallback(() => {
+    if (gameState === 'playing' && !smileDetected) {
+      setSmileDetected(true);
+      endGame();
+    }
+  }, [gameState, smileDetected, endGame]);
+  
+  // Handle when a laugh is detected
+  const handleLaughDetected = useCallback(() => {
+    if (gameState === 'playing' && !laughDetected) {
+      setLaughDetected(true);
+      endGame();
+    }
+  }, [gameState, laughDetected, endGame]);
   
   // Stop camera and microphone
   const stopMediaDevices = () => {
