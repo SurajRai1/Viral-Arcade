@@ -6,6 +6,8 @@ import { FaPlay, FaRedo, FaCamera, FaShareAlt, FaTrophy, FaUserPlus, FaMicrophon
 import Confetti from 'react-confetti';
 import Image from 'next/image';
 import * as faceapi from 'face-api.js';
+import { loadFaceDetectionModels, detectSmile } from '@/utils/faceDetection';
+import { fetchJoke, fetchRoast, getRandomContent } from '@/utils/contentFetcher';
 
 // Sample jokes for the game
 const jokes = [
@@ -68,21 +70,19 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
     try {
       setLoadingModels(true);
       
-      // Load models from CDN
-      const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-      await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+      // Use our improved face detection loader
+      const success = await loadFaceDetectionModels();
       
-      console.log('Face detection models loaded successfully');
-      setModelsLoaded(true);
+      setModelsLoaded(success);
       setLoadingModels(false);
+      
+      if (!success) {
+        console.warn("Face detection models couldn't be loaded. Using fallback detection.");
+      }
     } catch (error) {
       console.error("Error loading face detection models:", error);
-      // Fallback to simulated detection if models fail to load
-      setModelsLoaded(true); // Pretend models loaded so game can continue
+      setModelsLoaded(false);
       setLoadingModels(false);
-      alert("Face detection models couldn't be loaded. The game will use simulated detection instead.");
     }
   };
   
@@ -201,6 +201,48 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
     }, 1000);
   };
   
+  // Show random jokes and memes
+  const showRandomContent = async () => {
+    try {
+      // Start with a joke from OpenAI
+      const joke = await fetchJoke();
+      setCurrentJoke(joke);
+      setCurrentMeme('');
+      
+      // Alternate between jokes, roasts, and memes
+      jokeTimerRef.current = setInterval(async () => {
+        try {
+          if (currentJoke) {
+            // Show a meme
+            setCurrentMeme(memes[Math.floor(Math.random() * memes.length)]);
+            setCurrentJoke('');
+          } else {
+            // Get random content (joke or roast)
+            const content = await getRandomContent();
+            if (content.type === 'memeText') {
+              // Show a meme with the generated text
+              setCurrentMeme(memes[Math.floor(Math.random() * memes.length)]);
+              setCurrentJoke(content.content); // Show the meme text as a caption
+            } else {
+              // Show a joke or roast
+              setCurrentJoke(content.content);
+              setCurrentMeme('');
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching content:", error);
+          // Fallback to static jokes if API fails
+          setCurrentJoke(jokes[Math.floor(Math.random() * jokes.length)]);
+          setCurrentMeme('');
+        }
+      }, 5000);
+    } catch (error) {
+      console.error("Error in initial content fetch:", error);
+      // Fallback to static jokes if API fails
+      setCurrentJoke(jokes[Math.floor(Math.random() * jokes.length)]);
+    }
+  };
+  
   // Start face detection
   const startFaceDetection = () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -218,19 +260,10 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
       detectionIntervalRef.current = setInterval(async () => {
         if (video.readyState === 4 && gameState === 'playing') {
           try {
-            // Detect faces
-            const detections = await faceapi.detectAllFaces(
-              video, 
-              new faceapi.TinyFaceDetectorOptions()
-            ).withFaceLandmarks().withFaceExpressions();
-            
-            if (detections.length > 0) {
-              const expressions = detections[0].expressions;
-              
-              // Check for smile or laugh
-              if (expressions.happy > 0.7) {
-                handleSmileDetected();
-              }
+            // Use our utility function to detect smiles
+            const isSmiling = await detectSmile(video);
+            if (isSmiling) {
+              handleSmileDetected();
             }
           } catch (error) {
             console.error("Error during face detection:", error);
@@ -249,26 +282,6 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
         }
       }, 1000);
     }
-  };
-  
-  // Show random jokes and memes
-  const showRandomContent = () => {
-    // Start with a joke
-    setCurrentJoke(jokes[Math.floor(Math.random() * jokes.length)]);
-    setCurrentMeme('');
-    
-    // Alternate between jokes and memes
-    jokeTimerRef.current = setInterval(() => {
-      if (currentJoke) {
-        // Show a meme
-        setCurrentMeme(memes[Math.floor(Math.random() * memes.length)]);
-        setCurrentJoke('');
-      } else {
-        // Show a joke
-        setCurrentJoke(jokes[Math.floor(Math.random() * jokes.length)]);
-        setCurrentMeme('');
-      }
-    }, 5000);
   };
   
   // Handle when a smile is detected
