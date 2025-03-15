@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { FaPlay, FaRedo, FaCamera, FaShareAlt, FaTrophy, FaUserPlus } from 'react-icons/fa';
+import { FaPlay, FaRedo, FaCamera, FaShareAlt, FaTrophy, FaUserPlus, FaMicrophone, FaFacebook, FaTwitter, FaWhatsapp, FaEnvelope } from 'react-icons/fa';
 import Confetti from 'react-confetti';
 import Image from 'next/image';
+import * as faceapi from 'face-api.js';
 
 // Sample jokes for the game
 const jokes = [
@@ -34,7 +35,7 @@ interface YouLaughYouLoseProps {
 }
 
 export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseProps) {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'result'>('intro');
+  const [gameState, setGameState] = useState<'intro' | 'permissions' | 'playing' | 'result'>('intro');
   const [currentJoke, setCurrentJoke] = useState('');
   const [currentMeme, setCurrentMeme] = useState('');
   const [countdown, setCountdown] = useState(3);
@@ -42,21 +43,122 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
   const [score, setScore] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [microphoneActive, setMicrophoneActive] = useState(false);
+  const [permissionsGranted, setPermissionsGranted] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [smileDetected, setSmileDetected] = useState(false);
+  const [laughDetected, setLaughDetected] = useState(false);
   const [showAccountPrompt, setShowAccountPrompt] = useState(false);
   const [hasPlayedFreeGame, setHasPlayedFreeGame] = useState(false);
   const [freeTrialEnded, setFreeTrialEnded] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioAnalyserRef = useRef<AnalyserNode | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const jokeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const audioDetectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Load face-api models
+  const loadModels = async () => {
+    try {
+      setLoadingModels(true);
+      
+      // Load models from CDN
+      const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+      
+      setModelsLoaded(true);
+      setLoadingModels(false);
+    } catch (error) {
+      console.error("Error loading face detection models:", error);
+      setLoadingModels(false);
+    }
+  };
+  
+  // Request permissions and start game
+  const requestPermissions = async () => {
+    setGameState('permissions');
+    
+    try {
+      // Load face detection models
+      if (!modelsLoaded && !loadingModels) {
+        await loadModels();
+      }
+      
+      // Request camera permission
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true,
+        audio: true 
+      });
+      
+      // Set up video stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      
+      // Set up audio analysis
+      setupAudioAnalysis(stream);
+      
+      setCameraActive(true);
+      setMicrophoneActive(true);
+      setPermissionsGranted(true);
+      setPermissionDenied(false);
+      
+      // Start the game after permissions are granted
+      startGame();
+      
+    } catch (error) {
+      console.error("Error accessing camera or microphone:", error);
+      setCameraActive(false);
+      setMicrophoneActive(false);
+      setPermissionDenied(true);
+    }
+  };
+  
+  // Set up audio analysis for laugh detection
+  const setupAudioAnalysis = (stream: MediaStream) => {
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      audioContextRef.current = new AudioContext();
+      
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      audioAnalyserRef.current = audioContextRef.current.createAnalyser();
+      audioAnalyserRef.current.fftSize = 256;
+      
+      source.connect(audioAnalyserRef.current);
+      
+      // Start audio level detection
+      audioDetectionIntervalRef.current = setInterval(() => {
+        if (audioAnalyserRef.current && gameState === 'playing') {
+          const dataArray = new Uint8Array(audioAnalyserRef.current.frequencyBinCount);
+          audioAnalyserRef.current.getByteFrequencyData(dataArray);
+          
+          // Calculate average volume
+          const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+          
+          // If volume is above threshold, might be laughing
+          if (average > 70) { // Adjust threshold as needed
+            handleLaughDetected();
+          }
+        }
+      }, 500);
+      
+    } catch (error) {
+      console.error("Error setting up audio analysis:", error);
+    }
+  };
   
   // Start the game
   const startGame = () => {
-    // If free trial ended and not embedded, show account prompt
-    if (freeTrialEnded && !isEmbedded) {
-      setShowAccountPrompt(true);
+    if (!permissionsGranted) {
+      requestPermissions();
       return;
     }
     
@@ -64,19 +166,16 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
     setScore(0);
     setTimeLeft(30);
     setSmileDetected(false);
+    setLaughDetected(false);
+    setShowConfetti(false);
     
-    // Start with a random joke
-    const randomJoke = jokes[Math.floor(Math.random() * jokes.length)];
-    setCurrentJoke(randomJoke);
+    // Start face detection
+    startFaceDetection();
     
-    // Start with a random meme
-    const randomMeme = memes[Math.floor(Math.random() * memes.length)];
-    setCurrentMeme(randomMeme);
+    // Show random jokes and memes
+    showRandomContent();
     
-    // Start the camera if available
-    startCamera();
-    
-    // Start the game timer
+    // Start the timer
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -86,54 +185,75 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
         return prev - 1;
       });
     }, 1000);
+  };
+  
+  // Start face detection
+  const startFaceDetection = () => {
+    if (!videoRef.current || !canvasRef.current || !modelsLoaded) return;
     
-    // Change joke/meme every 5 seconds
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    // Set up canvas
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Start detection interval
+    detectionIntervalRef.current = setInterval(async () => {
+      if (video.readyState === 4 && gameState === 'playing') {
+        // Detect faces
+        const detections = await faceapi.detectAllFaces(
+          video, 
+          new faceapi.TinyFaceDetectorOptions()
+        ).withFaceLandmarks().withFaceExpressions();
+        
+        if (detections.length > 0) {
+          const expressions = detections[0].expressions;
+          
+          // Check for smile or laugh
+          if (expressions.happy > 0.7) {
+            handleSmileDetected();
+          }
+        }
+      }
+    }, 500);
+  };
+  
+  // Show random jokes and memes
+  const showRandomContent = () => {
+    // Start with a joke
+    setCurrentJoke(jokes[Math.floor(Math.random() * jokes.length)]);
+    setCurrentMeme('');
+    
+    // Alternate between jokes and memes
     jokeTimerRef.current = setInterval(() => {
-      // 50% chance to show a joke or a meme
-      if (Math.random() > 0.5) {
-        const randomJoke = jokes[Math.floor(Math.random() * jokes.length)];
-        setCurrentJoke(randomJoke);
-        setCurrentMeme('');
-      } else {
-        const randomMeme = memes[Math.floor(Math.random() * memes.length)];
-        setCurrentMeme(randomMeme);
+      if (currentJoke) {
+        // Show a meme
+        setCurrentMeme(memes[Math.floor(Math.random() * memes.length)]);
         setCurrentJoke('');
+      } else {
+        // Show a joke
+        setCurrentJoke(jokes[Math.floor(Math.random() * jokes.length)]);
+        setCurrentMeme('');
       }
     }, 5000);
   };
   
-  // Start the camera
-  const startCamera = async () => {
-    try {
-      setCameraActive(true);
-      
-      // In a real app, this would use face detection API
-      // For this demo, we'll simulate smile detection
-      const simulateSmileDetection = () => {
-        // 10% chance to detect a smile every 2 seconds
-        if (Math.random() < 0.1 && !smileDetected) {
-          handleSmileDetected();
-        }
-      };
-      
-      // Check for smiles every 2 seconds
-      const smileDetectionInterval = setInterval(simulateSmileDetection, 2000);
-      
-      // Clean up
-      return () => clearInterval(smileDetectionInterval);
-    } catch (error) {
-      console.error("Error accessing camera:", error);
-      setCameraActive(false);
-    }
-  };
-  
   // Handle when a smile is detected
-  const handleSmileDetected = () => {
-    if (gameState !== 'playing') return;
-    
-    setSmileDetected(true);
-    endGame();
-  };
+  const handleSmileDetected = useCallback(() => {
+    if (gameState === 'playing' && !smileDetected) {
+      setSmileDetected(true);
+      endGame();
+    }
+  }, [gameState, smileDetected]);
+  
+  // Handle when a laugh is detected
+  const handleLaughDetected = useCallback(() => {
+    if (gameState === 'playing' && !laughDetected) {
+      setLaughDetected(true);
+      endGame();
+    }
+  }, [gameState, laughDetected]);
   
   // End the game
   const endGame = () => {
@@ -162,8 +282,16 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
       clearInterval(jokeTimerRef.current);
     }
     
-    // Stop camera
-    setCameraActive(false);
+    if (detectionIntervalRef.current) {
+      clearInterval(detectionIntervalRef.current);
+    }
+    
+    if (audioDetectionIntervalRef.current) {
+      clearInterval(audioDetectionIntervalRef.current);
+    }
+    
+    // Stop camera and microphone
+    stopMediaDevices();
     
     // Set free trial as ended if this is their first game and not embedded
     if (!hasPlayedFreeGame && !isEmbedded) {
@@ -177,14 +305,118 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
     }
   };
   
-  // Share score to social media
+  // Stop camera and microphone
+  const stopMediaDevices = () => {
+    // Stop video stream
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = videoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    
+    // Stop audio context
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+    }
+    
+    setCameraActive(false);
+    setMicrophoneActive(false);
+  };
+  
+  // Share score
   const shareScore = () => {
-    // In a real app, this would integrate with social media APIs
-    alert(`Sharing score: You survived ${score} seconds without laughing!`);
+    const text = `I survived ${score} seconds in the "You Laugh You Lose" challenge! Can you beat my score?`;
+    const url = window.location.href;
+    
+    // Open share dialog
+    if (navigator.share) {
+      navigator.share({
+        title: 'My Score in You Laugh You Lose',
+        text: text,
+        url: url,
+      });
+    } else {
+      // Fallback for browsers that don't support Web Share API
+      const socialLinks = [
+        { name: 'Facebook', icon: <FaFacebook />, url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}` },
+        { name: 'Twitter', icon: <FaTwitter />, url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}` },
+        { name: 'WhatsApp', icon: <FaWhatsapp />, url: `https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}` },
+        { name: 'Email', icon: <FaEnvelope />, url: `mailto:?subject=My Score in You Laugh You Lose&body=${encodeURIComponent(text + '\n\n' + url)}` },
+      ];
+      
+      // Create a modal with social sharing options
+      const modal = document.createElement('div');
+      modal.style.position = 'fixed';
+      modal.style.top = '0';
+      modal.style.left = '0';
+      modal.style.width = '100%';
+      modal.style.height = '100%';
+      modal.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+      modal.style.display = 'flex';
+      modal.style.alignItems = 'center';
+      modal.style.justifyContent = 'center';
+      modal.style.zIndex = '9999';
+      
+      const content = document.createElement('div');
+      content.style.backgroundColor = 'white';
+      content.style.borderRadius = '8px';
+      content.style.padding = '20px';
+      content.style.maxWidth = '90%';
+      content.style.width = '400px';
+      
+      const title = document.createElement('h3');
+      title.textContent = 'Share Your Score';
+      title.style.marginBottom = '15px';
+      title.style.fontSize = '18px';
+      title.style.fontWeight = 'bold';
+      
+      const closeButton = document.createElement('button');
+      closeButton.textContent = 'Close';
+      closeButton.style.marginTop = '15px';
+      closeButton.style.padding = '8px 16px';
+      closeButton.style.backgroundColor = '#e2e8f0';
+      closeButton.style.border = 'none';
+      closeButton.style.borderRadius = '4px';
+      closeButton.style.cursor = 'pointer';
+      closeButton.onclick = () => document.body.removeChild(modal);
+      
+      content.appendChild(title);
+      
+      // Add social links
+      const linkContainer = document.createElement('div');
+      linkContainer.style.display = 'flex';
+      linkContainer.style.flexWrap = 'wrap';
+      linkContainer.style.gap = '10px';
+      linkContainer.style.justifyContent = 'center';
+      linkContainer.style.marginBottom = '15px';
+      
+      socialLinks.forEach(social => {
+        const link = document.createElement('a');
+        link.href = social.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.style.display = 'inline-flex';
+        link.style.alignItems = 'center';
+        link.style.justifyContent = 'center';
+        link.style.padding = '8px 16px';
+        link.style.backgroundColor = '#3b82f6';
+        link.style.color = 'white';
+        link.style.borderRadius = '4px';
+        link.style.textDecoration = 'none';
+        link.textContent = social.name;
+        linkContainer.appendChild(link);
+      });
+      
+      content.appendChild(linkContainer);
+      content.appendChild(closeButton);
+      modal.appendChild(content);
+      document.body.appendChild(modal);
+    }
   };
 
   // Add a function to handle account creation redirect
   const handleCreateAccount = () => {
+    setShowAccountPrompt(false);
     // Redirect to the signup page with the game name as a query parameter
     window.location.href = '/signup?from=you-laugh-you-lose';
   };
@@ -199,6 +431,9 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (jokeTimerRef.current) clearInterval(jokeTimerRef.current);
+      if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
+      if (audioDetectionIntervalRef.current) clearInterval(audioDetectionIntervalRef.current);
+      stopMediaDevices();
     };
   }, []);
   
@@ -258,7 +493,7 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
             </p>
             
             <button
-              onClick={startGame}
+              onClick={requestPermissions}
               className="py-4 px-8 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg transition-colors mx-auto mb-8 flex items-center"
             >
               <FaPlay className="mr-2" /> Start Game
@@ -270,9 +505,17 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
                 <li>We'll show you jokes and memes</li>
                 <li>Try not to laugh or smile</li>
                 <li>Your camera will detect if you laugh</li>
+                <li>Your microphone will detect laughter sounds</li>
                 <li>The longer you last, the higher your score</li>
                 <li>You have 30 seconds to survive</li>
               </ul>
+              
+              <div className="mt-4 bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg">
+                <p className="text-blue-800 dark:text-blue-300 text-sm">
+                  <strong>Note:</strong> This game requires camera and microphone access to detect smiles and laughter.
+                  Your privacy is important - no video or audio is recorded or stored.
+                </p>
+              </div>
             </div>
             
             {freeTrialEnded && !isEmbedded && (
@@ -291,10 +534,79 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
           </motion.div>
         )}
         
+        {gameState === 'permissions' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center"
+          >
+            <h2 className="text-2xl font-bold mb-4">Camera & Microphone Access</h2>
+            
+            {loadingModels && (
+              <div className="mb-6">
+                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p>Loading face detection models...</p>
+              </div>
+            )}
+            
+            {!permissionsGranted && !permissionDenied && !loadingModels && (
+              <>
+                <p className="mb-6">
+                  Please allow access to your camera and microphone when prompted.
+                  This is required to detect smiles and laughter during the game.
+                </p>
+                
+                <div className="flex justify-center gap-6 mb-8">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-2">
+                      <FaCamera className="text-2xl text-blue-600" />
+                    </div>
+                    <p className="text-sm">Camera</p>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-2">
+                      <FaMicrophone className="text-2xl text-blue-600" />
+                    </div>
+                    <p className="text-sm">Microphone</p>
+                  </div>
+                </div>
+                
+                <div className="bg-blue-100 dark:bg-blue-900/30 p-4 rounded-lg max-w-lg mx-auto mb-6">
+                  <p className="text-blue-800 dark:text-blue-300 text-sm">
+                    <strong>Privacy Note:</strong> We do not record or store any video or audio.
+                    All processing happens locally in your browser.
+                  </p>
+                </div>
+              </>
+            )}
+            
+            {permissionDenied && (
+              <div className="mb-6">
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FaCamera className="text-2xl text-red-600" />
+                </div>
+                <p className="text-red-600 dark:text-red-400 mb-4">
+                  Camera or microphone access was denied. This game requires both to function.
+                </p>
+                <p className="mb-6">
+                  Please allow access in your browser settings and try again.
+                </p>
+                <button
+                  onClick={requestPermissions}
+                  className="py-2 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+        
         {gameState === 'playing' && (
           <div className="flex flex-col md:flex-row h-full gap-6">
             {/* Camera feed */}
-            <div className="flex-1 bg-black rounded-xl overflow-hidden relative flex items-center justify-center">
+            <div className="flex-1 bg-black rounded-xl overflow-hidden relative flex items-center justify-center min-h-[200px] md:min-h-[300px]">
               {cameraActive ? (
                 <>
                   <video
@@ -317,10 +629,18 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
               <div className="absolute top-4 right-4 bg-white dark:bg-gray-800 px-3 py-1 rounded-full text-sm font-bold">
                 Time: {timeLeft}s
               </div>
+              
+              {/* Microphone indicator */}
+              {microphoneActive && (
+                <div className="absolute bottom-4 left-4 bg-white dark:bg-gray-800 px-3 py-1 rounded-full text-sm font-bold flex items-center">
+                  <FaMicrophone className="mr-1 text-red-500 animate-pulse" />
+                  <span>Listening</span>
+                </div>
+              )}
             </div>
             
             {/* Joke/Meme display */}
-            <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-xl p-6 flex items-center justify-center">
+            <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-xl p-6 flex items-center justify-center min-h-[200px] md:min-h-[300px]">
               {currentJoke && (
                 <motion.div
                   key={currentJoke}
@@ -339,7 +659,7 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
                   animate={{ opacity: 1, scale: 1 }}
                   className="text-center"
                 >
-                  <div className="relative w-full max-w-md h-64 mx-auto">
+                  <div className="relative w-full max-w-md h-48 md:h-64 mx-auto">
                     <Image
                       src={currentMeme}
                       alt="Funny meme"
@@ -360,11 +680,11 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
             className="text-center"
           >
             <h2 className="text-3xl font-bold mb-2">
-              {smileDetected ? "You Laughed!" : "Time's Up!"}
+              {smileDetected ? "You Smiled!" : laughDetected ? "You Laughed!" : "Time's Up!"}
             </h2>
             <p className="text-lg mb-6">
-              {smileDetected 
-                ? `We caught you laughing! You survived ${score} seconds.`
+              {smileDetected || laughDetected
+                ? `We caught you ${smileDetected ? 'smiling' : 'laughing'}! You survived ${score} seconds.`
                 : `Impressive! You survived the full ${score} seconds without laughing!`
               }
             </p>
