@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { FaSpinner } from 'react-icons/fa';
 
-export default function AuthCallbackPage() {
+// Create a separate component that uses useSearchParams
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [message, setMessage] = useState('Processing your authentication...');
@@ -107,5 +108,29 @@ export default function AuthCallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Loading fallback component
+function AuthCallbackLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg max-w-md w-full text-center">
+        <div className="flex flex-col items-center">
+          <FaSpinner className="animate-spin text-4xl text-blue-500 mb-4" />
+          <h2 className="text-xl font-bold mb-2">Loading</h2>
+          <p className="text-gray-600 dark:text-gray-400">Please wait...</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main component that wraps the content in a Suspense boundary
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={<AuthCallbackLoading />}>
+      <AuthCallbackContent />
+    </Suspense>
   );
 } 
