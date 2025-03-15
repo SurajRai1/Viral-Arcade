@@ -4,14 +4,13 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { FaGamepad, FaTrophy, FaUser, FaBars, FaTimes, FaInfoCircle, FaEnvelope, FaSignOutAlt } from 'react-icons/fa';
+import { FaGamepad, FaUser, FaBars, FaTimes, FaInfoCircle, FaEnvelope, FaSignOutAlt } from 'react-icons/fa';
 import { supabase } from '@/lib/supabase';
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -37,8 +36,6 @@ export default function Navbar() {
         setUser(session?.user || null);
       } catch (error) {
         console.error('Error checking auth status:', error);
-      } finally {
-        setLoading(false);
       }
     };
     

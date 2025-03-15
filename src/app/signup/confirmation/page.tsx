@@ -52,9 +52,10 @@ export default function ConfirmationPage() {
       setTimeout(() => {
         setResendSuccess(false);
       }, 5000);
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       console.error('Error resending verification email:', error);
-      setResendError(error.message || 'Failed to resend verification email');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to resend verification email';
+      setResendError(errorMessage);
     } finally {
       setIsResending(false);
     }

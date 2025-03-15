@@ -81,7 +81,8 @@ export default function LoginPage() {
     
     try {
       // Sign in with Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // We don't use the data directly as we handle the session in the auth state change listener
+      const { error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
       });
@@ -140,11 +141,12 @@ export default function LoginPage() {
           }
         }, 2000);
       }
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       console.error('Login error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Invalid email or password. Please try again.';
       setErrors(prev => ({
         ...prev,
-        form: error.message || 'Invalid email or password. Please try again.'
+        form: errorMessage
       }));
     } finally {
       setIsSubmitting(false);
@@ -182,11 +184,12 @@ export default function LoginPage() {
       setTimeout(() => {
         setResendSuccess(false);
       }, 5000);
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       console.error('Error resending confirmation email:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to resend confirmation email';
       setErrors(prev => ({
         ...prev,
-        form: error.message || 'Failed to resend confirmation email'
+        form: errorMessage
       }));
     } finally {
       setIsResending(false);
@@ -206,11 +209,12 @@ export default function LoginPage() {
       if (error) {
         throw error;
       }
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       console.error('Google sign in error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to sign in with Google. Please try again.';
       setErrors(prev => ({
         ...prev,
-        form: error.message || 'Failed to sign in with Google. Please try again.'
+        form: errorMessage
       }));
     }
   };

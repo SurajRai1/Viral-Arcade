@@ -197,9 +197,10 @@ export default function ProfilePage() {
       setTimeout(() => {
         setSaveSuccess(false);
       }, 3000);
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update profile';
       console.error('Error updating profile:', error);
-      setSaveError(error.message || 'Failed to update profile');
+      setSaveError(errorMessage);
     } finally {
       setIsSaving(false);
     }

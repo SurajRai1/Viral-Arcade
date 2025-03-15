@@ -74,9 +74,10 @@ export default function AuthCallbackPage() {
             router.push('/login');
           }
         }
-      } catch (error: any) {
+      } catch (error: Error | unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'An error occurred during authentication';
         console.error('Error processing authentication callback:', error);
-        setError(error.message || 'An error occurred during authentication');
+        setError(errorMessage);
         
         // Redirect to login after a delay even if there's an error
         setTimeout(() => {

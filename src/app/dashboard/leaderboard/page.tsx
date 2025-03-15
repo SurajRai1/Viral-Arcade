@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FaTrophy, FaMedal, FaGamepad, FaCalendarAlt, FaFilter, FaSearch } from 'react-icons/fa';
-import Image from 'next/image';
+import { FaTrophy, FaMedal, FaGamepad, FaCalendarAlt, FaSearch } from 'react-icons/fa';
 
 export default function LeaderboardPage() {
   const [activeGame, setActiveGame] = useState('all');

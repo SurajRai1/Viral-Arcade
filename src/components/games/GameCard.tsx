@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
-import { FaPlay, FaTrophy, FaInfoCircle, FaUsers, FaFire, FaStar, FaClock, FaMedal } from 'react-icons/fa';
+import { FaPlay, FaTrophy, FaUsers, FaFire, FaStar, FaClock, FaMedal } from 'react-icons/fa';
 
 interface GameCardProps {
   id: string;
@@ -34,7 +34,6 @@ export default function GameCard({
   onPlay
 }: GameCardProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   
   // Mouse position values for 3D tilt effect

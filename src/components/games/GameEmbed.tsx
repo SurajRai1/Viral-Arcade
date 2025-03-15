@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaTimes, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute, FaTrophy, FaInfoCircle, FaShareAlt } from 'react-icons/fa';
 import dynamic from 'next/dynamic';
+import { ComponentType } from 'react';
 
 // Game components will be loaded dynamically
-const gameComponents: Record<string, any> = {
+const gameComponents: Record<string, ComponentType<{isEmbedded?: boolean}>> = {
   'speed-click': dynamic(() => import('@/components/games/SpeedClick')),
   'you-laugh-you-lose': dynamic(() => import('@/components/games/YouLaughYouLose')),
   'ai-roast-me': dynamic(() => import('@/components/games/AIRoastMe')),

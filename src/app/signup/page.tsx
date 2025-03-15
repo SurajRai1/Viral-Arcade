@@ -94,7 +94,8 @@ export default function SignupPage() {
     
     try {
       // Sign up with Supabase
-      const { data, error } = await supabase.auth.signUp({
+      // We don't use the data directly as we redirect to confirmation page
+      const { error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -117,11 +118,12 @@ export default function SignupPage() {
         router.push(`/signup/confirmation?email=${encodeURIComponent(formData.email)}`);
       }, 2000);
       
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       console.error('Signup error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred during signup. Please try again.';
       setErrors(prev => ({
         ...prev,
-        form: error.message || 'An error occurred during signup. Please try again.'
+        form: errorMessage
       }));
     } finally {
       setIsSubmitting(false);
@@ -141,11 +143,12 @@ export default function SignupPage() {
       if (error) {
         throw error;
       }
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       console.error('Google sign up error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to sign up with Google. Please try again.';
       setErrors(prev => ({
         ...prev,
-        form: error.message || 'Failed to sign up with Google. Please try again.'
+        form: errorMessage
       }));
     }
   };

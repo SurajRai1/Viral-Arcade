@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -15,7 +14,6 @@ import {
   FaChartLine,
   FaLightbulb,
   FaRandom,
-  FaUserAlt,
   FaClock,
   FaMedal,
   FaCalendarAlt
@@ -419,7 +417,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredGames.map((game, index) => (
+            {filteredGames.map((game) => (
               <GameCard
                 key={game.id}
                 id={game.id}
