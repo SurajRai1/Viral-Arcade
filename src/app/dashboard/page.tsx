@@ -133,6 +133,9 @@ export default function DashboardPage() {
   // Handle play game
   const handlePlayGame = (gameId: string) => {
     setActiveGame(gameId);
+    
+    // Track game play in analytics (if implemented)
+    // analytics.trackEvent('game_play', { gameId });
   };
 
   // Handle close game
@@ -198,9 +201,9 @@ export default function DashboardPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="mb-12 relative overflow-hidden rounded-xl shadow-xl"
+        className="mb-8 sm:mb-12 relative overflow-hidden rounded-xl shadow-xl"
       >
-        <div className="relative h-80 md:h-96">
+        <div className="relative h-64 sm:h-80 md:h-96">
           <Image
             src={featuredGame.imageUrl}
             alt={featuredGame.title}
@@ -209,7 +212,7 @@ export default function DashboardPage() {
             priority
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-            <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full">
+            <div className="absolute bottom-0 left-0 p-4 sm:p-6 md:p-8 w-full">
               <div className="flex items-center space-x-2 mb-2">
                 {featuredGame.isNew && (
                   <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
@@ -222,11 +225,11 @@ export default function DashboardPage() {
                   </span>
                 )}
               </div>
-              <h2 className="text-3xl md:text-4xl font-bold text-white mb-2">{featuredGame.title}</h2>
-              <p className="text-white/80 text-sm md:text-base mb-4 max-w-2xl">{featuredGame.description}</p>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-1 sm:mb-2">{featuredGame.title}</h2>
+              <p className="text-white/80 text-xs sm:text-sm md:text-base mb-3 sm:mb-4 max-w-2xl line-clamp-2 sm:line-clamp-none">{featuredGame.description}</p>
               <button
                 onClick={() => handlePlayGame(featuredGame.id)}
-                className="px-6 py-3 bg-secondary hover:bg-secondary-hover text-white rounded-full flex items-center transition-all shadow-lg hover:shadow-xl"
+                className="px-4 sm:px-6 py-2 sm:py-3 bg-secondary hover:bg-secondary-hover text-white rounded-full flex items-center transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
               >
                 <FaPlay className="mr-2" /> Play Featured Game
               </button>
@@ -246,94 +249,100 @@ export default function DashboardPage() {
           <FaChartLine className="mr-2 text-gray-500" /> Your Stats
         </h2>
         
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4">
           <motion.div 
             whileHover={{ y: -5 }}
-            className="glass-card dark:glass-card-dark p-4 flex flex-col items-center justify-center text-center"
+            className="glass-card dark:glass-card-dark p-3 sm:p-4 flex flex-col items-center justify-center text-center"
           >
-            <FaGamepad className="text-3xl mb-2 text-primary" />
-            <h3 className="text-sm text-gray-500 dark:text-gray-400">Games Played</h3>
-            <p className="text-2xl font-bold">{playerStats.totalGamesPlayed}</p>
+            <FaGamepad className="text-2xl sm:text-3xl mb-1 sm:mb-2 text-primary" />
+            <h3 className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Games Played</h3>
+            <p className="text-xl sm:text-2xl font-bold">{playerStats.totalGamesPlayed}</p>
           </motion.div>
           
           <motion.div 
             whileHover={{ y: -5 }}
-            className="glass-card dark:glass-card-dark p-4 flex flex-col items-center justify-center text-center"
+            className="glass-card dark:glass-card-dark p-3 sm:p-4 flex flex-col items-center justify-center text-center"
           >
-            <FaClock className="text-3xl mb-2 text-blue-500" />
-            <h3 className="text-sm text-gray-500 dark:text-gray-400">Time Played</h3>
-            <p className="text-2xl font-bold">{playerStats.totalTimePlayed}</p>
+            <FaClock className="text-2xl sm:text-3xl mb-1 sm:mb-2 text-blue-500" />
+            <h3 className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Time Played</h3>
+            <p className="text-xl sm:text-2xl font-bold">{playerStats.totalTimePlayed}</p>
           </motion.div>
           
           <motion.div 
             whileHover={{ y: -5 }}
-            className="glass-card dark:glass-card-dark p-4 flex flex-col items-center justify-center text-center"
+            className="glass-card dark:glass-card-dark p-3 sm:p-4 flex flex-col items-center justify-center text-center"
           >
-            <FaTrophy className="text-3xl mb-2 text-yellow-500" />
-            <h3 className="text-sm text-gray-500 dark:text-gray-400">Highest Score</h3>
-            <p className="text-2xl font-bold">{playerStats.highestScore.score}</p>
+            <FaTrophy className="text-2xl sm:text-3xl mb-1 sm:mb-2 text-yellow-500" />
+            <h3 className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Highest Score</h3>
+            <p className="text-xl sm:text-2xl font-bold">{playerStats.highestScore.score}</p>
             <p className="text-xs text-gray-500">{playerStats.highestScore.game}</p>
           </motion.div>
           
           <motion.div 
             whileHover={{ y: -5 }}
-            className="glass-card dark:glass-card-dark p-4 flex flex-col items-center justify-center text-center"
+            className="glass-card dark:glass-card-dark p-3 sm:p-4 flex flex-col items-center justify-center text-center"
           >
-            <FaMedal className="text-3xl mb-2 text-secondary" />
-            <h3 className="text-sm text-gray-500 dark:text-gray-400">Global Rank</h3>
-            <p className="text-2xl font-bold">#{playerStats.rank}</p>
+            <FaMedal className="text-2xl sm:text-3xl mb-1 sm:mb-2 text-secondary" />
+            <h3 className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Global Rank</h3>
+            <p className="text-xl sm:text-2xl font-bold">#{playerStats.rank}</p>
           </motion.div>
           
           <motion.div 
             whileHover={{ y: -5 }}
-            className="glass-card dark:glass-card-dark p-4 flex flex-col items-center justify-center text-center"
+            className="glass-card dark:glass-card-dark p-3 sm:p-4 flex flex-col items-center justify-center text-center"
           >
-            <FaCalendarAlt className="text-3xl mb-2 text-green-500" />
-            <h3 className="text-sm text-gray-500 dark:text-gray-400">Last Active</h3>
-            <p className="text-2xl font-bold">{playerStats.lastActive}</p>
+            <FaCalendarAlt className="text-2xl sm:text-3xl mb-1 sm:mb-2 text-green-500" />
+            <h3 className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Last Active</h3>
+            <p className="text-xl sm:text-2xl font-bold">{playerStats.lastActive}</p>
           </motion.div>
           
           <motion.div 
             whileHover={{ y: -5 }}
-            className="glass-card dark:glass-card-dark p-4 flex flex-col items-center justify-center text-center"
+            className="glass-card dark:glass-card-dark p-3 sm:p-4 flex flex-col items-center justify-center text-center"
           >
-            <FaStar className="text-3xl mb-2 text-purple-500" />
-            <h3 className="text-sm text-gray-500 dark:text-gray-400">Achievements</h3>
-            <p className="text-2xl font-bold">{playerStats.achievements}</p>
+            <FaStar className="text-2xl sm:text-3xl mb-1 sm:mb-2 text-purple-500" />
+            <h3 className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Achievements</h3>
+            <p className="text-xl sm:text-2xl font-bold">{playerStats.achievements}</p>
           </motion.div>
         </div>
       </motion.div>
 
       {/* Search and categories */}
-      <div className="mb-8 space-y-4">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <FaSearch className="text-gray-400" />
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4 sm:gap-0">
+          <h2 className="text-xl sm:text-2xl font-bold">Browse Games</h2>
+          
+          <div className="relative w-full sm:w-auto max-w-md">
+            <input
+              type="text"
+              placeholder="Search games..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2 pl-10 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search games..."
-            className="w-full pl-10 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
-          />
         </div>
         
-        <div className="flex overflow-x-auto pb-2 space-x-2 scrollbar-hide">
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => setActiveCategory(category.id)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-full whitespace-nowrap transition-all ${
-                activeCategory === category.id
-                  ? 'bg-primary text-white shadow-md'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              <span>{category.icon}</span>
-              <span>{category.name}</span>
-            </button>
-          ))}
+        <div className="overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+          <div className="flex space-x-2 min-w-max">
+            {categories.map((category) => (
+              <motion.button
+                key={category.id}
+                onClick={() => setActiveCategory(category.id === activeCategory ? 'all' : category.id)}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm flex items-center whitespace-nowrap ${
+                  activeCategory === category.id
+                    ? 'bg-primary text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <span className="mr-1.5">{category.icon}</span>
+                {category.name}
+              </motion.button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -357,7 +366,7 @@ export default function DashboardPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
                 whileHover={{ y: -5 }}
-                className="card-modern dark:card-modern-dark overflow-hidden"
+                className="card-modern dark:card-modern-dark overflow-hidden rounded-xl shadow-lg"
               >
                 <div className="relative h-40">
                   <Image
@@ -384,12 +393,14 @@ export default function DashboardPage() {
                     <div>No high score yet</div>
                   )}
                   
-                  <button
+                  <motion.button
                     onClick={() => handlePlayGame(game.id)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-full flex items-center transition-all"
                   >
                     <FaPlay className="mr-1" /> Play
-                  </button>
+                  </motion.button>
                 </div>
               </motion.div>
             ))}
@@ -412,11 +423,28 @@ export default function DashboardPage() {
         </h2>
         
         {filteredGames.length === 0 ? (
-          <div className="glass-card dark:glass-card-dark p-8 text-center">
-            <p className="text-gray-600 dark:text-gray-300">No games found matching "{searchQuery}"</p>
-          </div>
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="glass-card dark:glass-card-dark p-8 text-center rounded-xl"
+          >
+            <div className="w-16 h-16 mx-auto mb-4 text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">No games found matching "{searchQuery}"</p>
+            <motion.button
+              onClick={() => setSearchQuery('')}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-4 py-2 bg-primary text-white rounded-full inline-flex items-center"
+            >
+              Clear Search
+            </motion.button>
+          </motion.div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {filteredGames.map((game) => (
               <GameCard
                 key={game.id}
@@ -428,6 +456,8 @@ export default function DashboardPage() {
                 isNew={game.isNew}
                 isTrending={game.isTrending}
                 category={game.category}
+                lastPlayed={game.lastPlayed}
+                highScore={game.highScore}
                 onPlay={handlePlayGame}
               />
             ))}
