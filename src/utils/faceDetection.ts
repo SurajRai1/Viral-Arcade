@@ -7,6 +7,7 @@ export async function loadFaceDetectionModels(): Promise<boolean> {
   try {
     // Try multiple CDNs in case one fails
     const cdnUrls = [
+      'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/',
       'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights',
       'https://unpkg.com/face-api.js@0.22.2/weights',
       '/models' // Fallback to local models if available
@@ -78,22 +79,6 @@ export async function detectSmile(videoElement: HTMLVideoElement): Promise<boole
     return false;
   } catch (error) {
     console.error("Error during smile detection:", error);
-    return false;
-  }
-}
-
-/**
- * Create a local model directory and download models if needed
- * This is a fallback method if CDN loading fails
- */
-export async function downloadAndSaveModels(): Promise<boolean> {
-  try {
-    // This would typically be a server-side function
-    // For client-side, we'll just return false as we can't save files
-    console.log("Attempted to download and save models locally, but this requires server-side implementation");
-    return false;
-  } catch (error) {
-    console.error("Error downloading models:", error);
     return false;
   }
 } 

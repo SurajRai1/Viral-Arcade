@@ -5,9 +5,10 @@ import { motion } from 'framer-motion';
 import { FaPlay, FaRedo, FaCamera, FaShareAlt, FaTrophy, FaUserPlus, FaMicrophone, FaFacebook, FaTwitter, FaWhatsapp, FaEnvelope } from 'react-icons/fa';
 import Confetti from 'react-confetti';
 import Image from 'next/image';
-import * as faceapi from 'face-api.js';
+// Import only the types from face-api.js, not the entire library
+import type * as faceapiTypes from 'face-api.js';
 import { loadFaceDetectionModels, detectSmile } from '@/utils/faceDetection';
-import { fetchJoke, fetchRoast, getRandomContent } from '@/utils/contentFetcher';
+import { fetchJoke, getRandomContent } from '@/utils/contentFetcher';
 
 // Sample jokes for the game
 const jokes = [
@@ -40,7 +41,6 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
   const [gameState, setGameState] = useState<'intro' | 'permissions' | 'playing' | 'result'>('intro');
   const [currentJoke, setCurrentJoke] = useState('');
   const [currentMeme, setCurrentMeme] = useState('');
-  const [countdown, setCountdown] = useState(3);
   const [timeLeft, setTimeLeft] = useState(30);
   const [score, setScore] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -139,7 +139,8 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
   // Set up audio analysis for laugh detection
   const setupAudioAnalysis = (stream: MediaStream) => {
     try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      // Fix TypeScript warning by using a proper type assertion
+      const AudioContext = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       audioContextRef.current = new AudioContext();
       
       const source = audioContextRef.current.createMediaStreamSource(stream);
@@ -290,7 +291,7 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
       setSmileDetected(true);
       endGame();
     }
-  }, [gameState, smileDetected]);
+  }, [gameState, smileDetected, endGame]);
   
   // Handle when a laugh is detected
   const handleLaughDetected = useCallback(() => {
@@ -298,7 +299,7 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
       setLaughDetected(true);
       endGame();
     }
-  }, [gameState, laughDetected]);
+  }, [gameState, laughDetected, endGame]);
   
   // End the game
   const endGame = () => {
@@ -354,7 +355,9 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
   const stopMediaDevices = () => {
     // Stop video stream
     if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = videoRef.current.srcObject.getTracks();
+      // Fix TypeScript error by properly typing srcObject as MediaStream
+      const stream = videoRef.current.srcObject as MediaStream;
+      const tracks = stream.getTracks();
       tracks.forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
