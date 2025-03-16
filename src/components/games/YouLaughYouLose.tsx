@@ -103,19 +103,37 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
         throw new Error("Your browser doesn't support camera access. Try using a modern browser like Chrome, Firefox, or Edge.");
       }
       
-      // Request camera permission
+      // Request camera permission with specific constraints for better compatibility
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true,
+        video: {
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+          facingMode: "user",
+          frameRate: { ideal: 30 }
+        },
         audio: true 
       });
       
-      // Set up video stream
+      // Set up video stream with proper initialization
       if (videoRef.current) {
+        // Reset video element
+        videoRef.current.srcObject = null;
+        
+        // Set new stream
         videoRef.current.srcObject = stream;
-        // Ensure video starts playing
-        await videoRef.current.play().catch(error => {
-          console.warn("Failed to play video:", error);
-        });
+        videoRef.current.style.transform = 'scaleX(-1)'; // Mirror the video
+        
+        // Ensure video plays
+        try {
+          await videoRef.current.play();
+          console.log("Video started playing successfully");
+        } catch (error) {
+          console.error("Error playing video:", error);
+          // Try alternative method
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(e => console.error("Second attempt to play failed:", e));
+          };
+        }
       }
       
       // Set up audio analysis
@@ -704,12 +722,23 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
                 <>
                   <video
                     ref={videoRef}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                     autoPlay
-                    muted
                     playsInline
+                    muted
+                    style={{
+                      transform: 'scaleX(-1)', // Mirror the video
+                      minWidth: '100%',
+                      minHeight: '100%',
+                      width: 'auto',
+                      height: 'auto',
+                      backgroundColor: 'black'
+                    }}
                   />
-                  <canvas ref={canvasRef} className="hidden" />
+                  <canvas 
+                    ref={canvasRef} 
+                    className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-0"
+                  />
                 </>
               ) : (
                 <div className="text-white text-center p-4">
