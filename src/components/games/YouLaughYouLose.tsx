@@ -91,9 +91,11 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
     setGameState('permissions');
     
     try {
-      // Load face detection models
+      // Try to load face detection models, but don't wait for them
       if (!modelsLoaded && !loadingModels) {
-        await loadModels();
+        loadModels().catch(error => {
+          console.warn("Failed to load face detection models, using fallback:", error);
+        });
       }
       
       // Check if mediaDevices is supported
@@ -110,6 +112,10 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
       // Set up video stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // Ensure video starts playing
+        await videoRef.current.play().catch(error => {
+          console.warn("Failed to play video:", error);
+        });
       }
       
       // Set up audio analysis
@@ -173,11 +179,7 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
   
   // Start the game
   const startGame = () => {
-    if (!permissionsGranted) {
-      requestPermissions();
-      return;
-    }
-    
+    // Reset game state
     setGameState('playing');
     setScore(0);
     setTimeLeft(30);
@@ -190,6 +192,11 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
     
     // Show random jokes and memes
     showRandomContent();
+    
+    // Clear any existing timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
     
     // Start the timer
     timerRef.current = setInterval(() => {
@@ -252,12 +259,29 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
-    // Set up canvas
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    // Set up canvas dimensions
+    const updateCanvasSize = () => {
+      if (video.videoWidth && video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      } else {
+        canvas.width = 640;
+        canvas.height = 480;
+      }
+    };
+    
+    // Update canvas size when video loads
+    video.addEventListener('loadedmetadata', updateCanvasSize);
+    updateCanvasSize();
+    
+    // Clear any existing detection interval
+    if (detectionIntervalRef.current) {
+      clearInterval(detectionIntervalRef.current);
+    }
     
     // If models loaded successfully, use face-api.js
     if (modelsLoaded) {
+      console.log("Using face detection models");
       // Start detection interval
       detectionIntervalRef.current = setInterval(async () => {
         if (video.readyState === 4 && gameState === 'playing') {
@@ -268,22 +292,33 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
               handleSmileDetected();
             }
           } catch (error) {
-            console.error("Error during face detection:", error);
+            console.warn("Error during face detection, using fallback:", error);
             // Fall back to random detection if face-api fails
-            if (Math.random() < 0.05) {
+            if (Math.random() < 0.1) { // 10% chance every check
               handleSmileDetected();
             }
           }
         }
       }, 500);
     } else {
-      // Fallback: simulate smile detection randomly
+      console.log("Using fallback detection");
+      // Fallback: simulate smile detection with increasing probability over time
+      let checkCount = 0;
       detectionIntervalRef.current = setInterval(() => {
-        if (gameState === 'playing' && Math.random() < 0.05) {
-          handleSmileDetected();
+        if (gameState === 'playing') {
+          checkCount++;
+          // Increase probability of detection as time goes on
+          const probability = Math.min(0.15, 0.05 + (checkCount * 0.005));
+          if (Math.random() < probability) {
+            handleSmileDetected();
+          }
         }
       }, 1000);
     }
+    
+    return () => {
+      video.removeEventListener('loadedmetadata', updateCanvasSize);
+    };
   };
   
   // End the game
