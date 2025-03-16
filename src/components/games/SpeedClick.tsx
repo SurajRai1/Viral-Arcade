@@ -23,39 +23,126 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
   const [gameState, setGameState] = useState<'intro' | 'ready' | 'playing' | 'result'>('intro');
   const [countdown, setCountdown] = useState(3);
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(1000); // 1000ms = 1 second
+  const [timeLeft, setTimeLeft] = useState(1);
   const [showConfetti, setShowConfetti] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [isRageMode, setIsRageMode] = useState(false);
-  const [obstacles, setObstacles] = useState<{id: number, x: number, y: number}[]>([]);
-  const [showAccountPrompt, setShowAccountPrompt] = useState(false);
+  const [obstacles, setObstacles] = useState<{id: number, x: number, y: number, size: number, dx: number, dy: number}[]>([]);
   const [hasPlayedFreeGame, setHasPlayedFreeGame] = useState(false);
   const [freeTrialEnded, setFreeTrialEnded] = useState(false);
   
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const obstaclesTimerRef = useRef<NodeJS.Timeout | null>(null);
   const clickAreaRef = useRef<HTMLDivElement>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const gameStartTimeRef = useRef<number>(0);
+  const scoreRef = useRef<number>(0);
+  const isGameActiveRef = useRef<boolean>(false);
+  const obstaclesTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Add audio refs
+  const clickSoundRef = useRef<{ play: () => void } | null>(null);
+  const countdownSoundRef = useRef<{ play: () => void } | null>(null);
+  const gameOverSoundRef = useRef<{ play: () => void } | null>(null);
+  const successSoundRef = useRef<{ play: () => void } | null>(null);
+
+  // Add audio state
+  const [isSoundEnabled, setIsSoundEnabled] = useState(true);
+
+  // Initialize audio on mount
+  useEffect(() => {
+    // Create audio context
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    // Create simple beep function
+    const beep = (frequency: number, duration: number, volume: number) => {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      gainNode.gain.value = volume;
+      
+      oscillator.start();
+      setTimeout(() => {
+        oscillator.stop();
+      }, duration);
+    };
+    
+    // Create sound functions
+    const playClickSound = () => beep(1000, 10, 0.1);
+    const playCountdownSound = () => beep(440, 100, 0.2);
+    const playGameOverSound = () => {
+      beep(400, 100, 0.3);
+      setTimeout(() => beep(300, 200, 0.3), 100);
+    };
+    const playSuccessSound = () => {
+      beep(440, 100, 0.2);
+      setTimeout(() => beep(660, 100, 0.2), 100);
+      setTimeout(() => beep(880, 200, 0.2), 200);
+    };
+
+    // Store sound functions
+    clickSoundRef.current = { play: playClickSound };
+    countdownSoundRef.current = { play: playCountdownSound };
+    gameOverSoundRef.current = { play: playGameOverSound };
+    successSoundRef.current = { play: playSuccessSound };
+
+    return () => {
+      audioContext.close();
+      clickSoundRef.current = null;
+      countdownSoundRef.current = null;
+      gameOverSoundRef.current = null;
+      successSoundRef.current = null;
+    };
+  }, []);
+
+  // Play sound utility function
+  const playSound = (soundRef: React.RefObject<{ play: () => void } | null>) => {
+    if (!isSoundEnabled || !soundRef.current) return;
+    try {
+      soundRef.current.play();
+    } catch (error) {
+      console.log('Error playing sound:', error);
+    }
+  };
+
+  // Toggle sound
+  const toggleSound = () => {
+    setIsSoundEnabled(!isSoundEnabled);
+  };
 
   // Start the game with countdown
   const startGame = (rageMode = false) => {
-    // If free trial ended and not embedded, show account prompt
     if (freeTrialEnded && !isEmbedded) {
-      setShowAccountPrompt(true);
       return;
     }
     
+    // Reset all game state
     setIsRageMode(rageMode);
     setGameState('ready');
     setScore(0);
+    scoreRef.current = 0;
     setCountdown(3);
     setObstacles([]);
+    isGameActiveRef.current = false;
     
-    // Start countdown
-    const countdownInterval = setInterval(() => {
+    // Clear any existing timers
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    if (obstaclesTimerRef.current) clearInterval(obstaclesTimerRef.current);
+    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    
+    // Start countdown with sound
+    countdownTimerRef.current = setInterval(() => {
       setCountdown((prev) => {
+        if (prev > 0) {
+          playSound(countdownSoundRef);
+        }
         if (prev <= 1) {
-          clearInterval(countdownInterval);
+          clearInterval(countdownTimerRef.current!);
           startPlaying();
           return 0;
         }
@@ -67,15 +154,26 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
   // Start actual gameplay
   const startPlaying = () => {
     setGameState('playing');
-    setTimeLeft(1000);
+    setTimeLeft(1);
+    gameStartTimeRef.current = performance.now();
+    isGameActiveRef.current = true;
     
-    // Start the timer for 1 second
-    timerRef.current = setTimeout(() => {
-      endGame();
-    }, 1000);
+    // Start the game timer using performance.now() for better precision
+    const updateTimer = () => {
+      if (!isGameActiveRef.current) return;
+      
+      const elapsed = (performance.now() - gameStartTimeRef.current) / 1000;
+      if (elapsed >= 1) {
+        endGame();
+      } else {
+        setTimeLeft(1 - elapsed);
+        animationFrameRef.current = requestAnimationFrame(updateTimer);
+      }
+    };
+    animationFrameRef.current = requestAnimationFrame(updateTimer);
     
     // If rage mode, generate obstacles
-    if (isRageMode && gameAreaRef.current) {
+    if (isRageMode) {
       generateObstacles();
     }
   };
@@ -85,95 +183,137 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
     if (!gameAreaRef.current) return;
     
     const { width, height } = gameAreaRef.current.getBoundingClientRect();
+    const padding = 60; // Padding from edges
     
+    // Initial obstacles with velocity
+    const initialObstacles = Array.from({ length: 5 }, (_, i) => ({
+      id: i,
+      x: Math.random() * (width - padding * 2) + padding,
+      y: Math.random() * (height - padding * 2) + padding,
+      size: Math.random() * 20 + 40, // Random size between 40-60px
+      dx: (Math.random() - 0.5) * 4, // Random velocity X
+      dy: (Math.random() - 0.5) * 4  // Random velocity Y
+    }));
+    setObstacles(initialObstacles);
+    
+    // Update obstacle positions with boundary checking
     obstaclesTimerRef.current = setInterval(() => {
-      setObstacles(prev => {
-        // Add a new obstacle every 100ms
-        const newObstacle = {
-          id: Date.now(),
-          x: Math.random() * (width - 40),
-          y: Math.random() * (height - 40)
+      setObstacles(prev => prev.map(obstacle => {
+        let newX = obstacle.x + obstacle.dx;
+        let newY = obstacle.y + obstacle.dy;
+        let newDx = obstacle.dx;
+        let newDy = obstacle.dy;
+        
+        // Bounce off walls
+        if (newX <= padding || newX >= width - padding) {
+          newDx = -newDx;
+          newX = newX <= padding ? padding : width - padding;
+        }
+        if (newY <= padding || newY >= height - padding) {
+          newDy = -newDy;
+          newY = newY <= padding ? padding : height - padding;
+        }
+        
+        return {
+          ...obstacle,
+          x: newX,
+          y: newY,
+          dx: newDx,
+          dy: newDy
         };
-        return [...prev, newObstacle];
-      });
-    }, 100);
+      }));
+    }, 16); // Update at ~60fps
   };
 
   // Handle clicks during gameplay
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || !isGameActiveRef.current) return;
+    
+    const clickX = e.nativeEvent.offsetX;
+    const clickY = e.nativeEvent.offsetY;
     
     // Check if clicked on an obstacle in rage mode
     if (isRageMode) {
-      const clickX = e.nativeEvent.offsetX;
-      const clickY = e.nativeEvent.offsetY;
-      
-      // Check if click is on any obstacle
       const hitObstacle = obstacles.some(obstacle => {
-        const distX = Math.abs(clickX - obstacle.x - 20); // 20 is half the obstacle width
-        const distY = Math.abs(clickY - obstacle.y - 20); // 20 is half the obstacle height
-        return distX < 20 && distY < 20;
+        const distX = clickX - obstacle.x;
+        const distY = clickY - obstacle.y;
+        const distance = Math.sqrt(distX * distX + distY * distY);
+        return distance < obstacle.size / 2;
       });
       
       if (hitObstacle) {
-        // Deduct points for hitting obstacles
+        playSound(gameOverSoundRef);
+        endGame();
         return;
       }
     }
     
-    // Increment score for valid clicks
-    setScore(prev => prev + 1);
-    
-    // Visual feedback for click
-    if (clickAreaRef.current) {
-      const ripple = document.createElement('span');
-      ripple.classList.add('click-ripple');
-      ripple.style.left = `${e.nativeEvent.offsetX}px`;
-      ripple.style.top = `${e.nativeEvent.offsetY}px`;
-      clickAreaRef.current.appendChild(ripple);
+    // Only count clicks if within the 1-second window
+    const elapsed = (performance.now() - gameStartTimeRef.current) / 1000;
+    if (elapsed <= 1) {
+      scoreRef.current += 1;
+      setScore(scoreRef.current);
+      playSound(clickSoundRef);
       
-      // Remove ripple after animation
-      setTimeout(() => {
-        ripple.remove();
-      }, 500);
+      // Visual feedback for click
+      if (clickAreaRef.current) {
+        const ripple = document.createElement('span');
+        ripple.classList.add('click-ripple');
+        ripple.style.left = `${clickX}px`;
+        ripple.style.top = `${clickY}px`;
+        clickAreaRef.current.appendChild(ripple);
+        
+        setTimeout(() => ripple.remove(), 500);
+      }
     }
   };
 
   // End the game
   const endGame = () => {
+    isGameActiveRef.current = false;
     setGameState('result');
     setShowConfetti(true);
     
-    // Clean up timers
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
+    // Play appropriate sound
+    if (isRageMode && scoreRef.current === 0) {
+      playSound(gameOverSoundRef);
+    } else {
+      playSound(successSoundRef);
     }
     
+    // Clean up timers
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
     if (obstaclesTimerRef.current) {
       clearInterval(obstaclesTimerRef.current);
+      obstaclesTimerRef.current = null;
     }
     
-    // Hide confetti after 5 seconds
+    // Hide confetti after 3 seconds
     setTimeout(() => {
       setShowConfetti(false);
-    }, 5000);
+    }, 3000);
     
-    // Set free trial as ended if this is their first game and not embedded
+    // Handle free trial logic
     if (!hasPlayedFreeGame && !isEmbedded) {
       setHasPlayedFreeGame(true);
       setFreeTrialEnded(true);
-      
-      // Show account prompt after a short delay
-      setTimeout(() => {
-        setShowAccountPrompt(true);
-      }, 1500);
     }
   };
 
-  // Share score to social media
-  const shareScore = () => {
-    // In a real app, this would integrate with social media APIs
-    alert(`Sharing score of ${score} clicks in 1 second${isRageMode ? ' (Rage Mode)' : ''}!`);
+  // Share score
+  const shareScore = async () => {
+    try {
+      await navigator.share({
+        title: 'Speed Click Challenge',
+        text: `I made ${scoreRef.current} clicks in 1 second${isRageMode ? ' in Rage Mode' : ''}! Can you beat my score?`,
+        url: window.location.href
+      });
+    } catch (error) {
+      console.log('Error sharing:', error);
+    }
   };
 
   // Save score to leaderboard
@@ -184,7 +324,7 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
     }
     
     // In a real app, this would save to a database
-    alert(`Score saved! ${playerName}: ${score} clicks in 1 second${isRageMode ? ' (Rage Mode)' : ''}`);
+    alert(`Score saved! ${playerName}: ${scoreRef.current} clicks in 1 second${isRageMode ? ' (Rage Mode)' : ''}`);
   };
 
   // Add a function to handle account creation redirect
@@ -195,122 +335,81 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
 
   // Add a function to continue without account
   const continueWithoutAccount = () => {
-    setShowAccountPrompt(false);
+    setShowConfetti(false);
   };
 
-  // Clean up timers on unmount
+  // Clean up on unmount
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       if (obstaclesTimerRef.current) clearInterval(obstaclesTimerRef.current);
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
     };
   }, []);
 
   return (
-    <div className="w-full h-full flex flex-col">
-      {showConfetti && (
-        <Confetti
-          width={typeof window !== 'undefined' ? window.innerWidth : 500}
-          height={typeof window !== 'undefined' ? window.innerHeight : 500}
-          recycle={false}
-          numberOfPieces={200}
-        />
-      )}
+    <div className="w-full max-w-4xl mx-auto p-4">
+      {showConfetti && <Confetti />}
       
-      <div className="flex-1 p-6 overflow-y-auto">
-        {/* Account prompt overlay */}
-        {showAccountPrompt && !isEmbedded && (
-          <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white dark:bg-gray-800 rounded-xl p-8 max-w-md w-full"
-            >
-              <h2 className="text-2xl font-bold mb-2">You've Completed Your Free Game!</h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Create an account to play unlimited games and save your scores.
-              </p>
-              
-              <div className="flex flex-col gap-4">
-                <button
-                  onClick={handleCreateAccount}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center"
-                >
-                  <FaUserPlus className="mr-2" /> Create Free Account
-                </button>
-                
-                <button
-                  onClick={continueWithoutAccount}
-                  className="w-full py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-bold"
-                >
-                  Maybe Later
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-        
+      <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden min-h-[400px]">
         {gameState === 'intro' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center"
+            className="text-center p-8"
           >
-            <h1 className="text-3xl font-bold mb-6">Speed Click Challenge</h1>
-            <p className="text-lg mb-8">
-              How many times can you click in 1 second? Test your clicking speed and reflexes!
+            <h1 className="text-3xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600">
+              Speed Click Challenge
+            </h1>
+            <p className="text-lg mb-8 text-gray-600 dark:text-gray-300">
+              How many times can you click in exactly 1 second? Test your speed!
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-lg mx-auto mb-8">
               <button
                 onClick={() => startGame(false)}
-                className="py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg transition-colors"
+                className="py-4 px-6 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-bold text-lg transition-all hover:scale-105"
               >
                 <FaGamepad className="inline mr-2" /> Normal Mode
               </button>
               <button
                 onClick={() => startGame(true)}
-                className="py-4 px-6 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-lg transition-colors"
+                className="py-4 px-6 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl font-bold text-lg transition-all hover:scale-105"
               >
                 <FaSkull className="inline mr-2" /> Rage Mode
               </button>
             </div>
             
-            <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg max-w-lg mx-auto">
-              <h2 className="font-bold text-lg mb-2">How to Play:</h2>
-              <ul className="text-left list-disc pl-5 space-y-1">
-                <li>Click as many times as possible within 1 second</li>
-                <li>Normal Mode: Just click anywhere in the play area</li>
-                <li>Rage Mode: Avoid clicking on the moving obstacles</li>
-                <li>Compare your score with players worldwide</li>
+            <div className="bg-gray-50 dark:bg-gray-700/50 p-6 rounded-xl max-w-lg mx-auto">
+              <h2 className="font-bold text-lg mb-4">How to Play:</h2>
+              <ul className="text-left space-y-2 text-gray-600 dark:text-gray-300">
+                <li className="flex items-center">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                  Click as many times as possible in exactly 1 second
+                </li>
+                <li className="flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  Normal Mode: Just click anywhere in the play area
+                </li>
+                <li className="flex items-center">
+                  <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                  Rage Mode: Avoid the moving red obstacles while clicking
+                </li>
               </ul>
             </div>
-            
-            {freeTrialEnded && !isEmbedded && (
-              <div className="mt-6 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 p-4 rounded-lg max-w-lg mx-auto">
-                <p className="text-yellow-800 dark:text-yellow-300 font-medium">
-                  You've played your free game! Create an account to continue playing and save your scores.
-                </p>
-                <button
-                  onClick={handleCreateAccount}
-                  className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
-                >
-                  Create Free Account
-                </button>
-              </div>
-            )}
           </motion.div>
         )}
         
         {gameState === 'ready' && (
           <div className="flex items-center justify-center h-full">
             <motion.div
-              initial={{ scale: 0.5, opacity: 0 }}
+              key={countdown}
+              initial={{ scale: 2, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
               className="text-center"
             >
-              <h2 className="text-2xl font-bold mb-4">Get Ready!</h2>
-              <div className="w-24 h-24 flex items-center justify-center bg-blue-600 text-white text-4xl font-bold rounded-full mx-auto">
+              <div className="w-32 h-32 flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-600 text-white text-6xl font-bold rounded-full">
                 {countdown}
               </div>
             </motion.div>
@@ -320,36 +419,41 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
         {gameState === 'playing' && (
           <div
             ref={gameAreaRef}
-            className="relative w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-xl overflow-hidden"
+            className="relative w-full h-[400px] bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700"
           >
             {isRageMode && obstacles.map(obstacle => (
               <motion.div
                 key={obstacle.id}
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="absolute w-10 h-10 bg-red-500 rounded-full"
-                style={{ left: obstacle.x, top: obstacle.y }}
-              />
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute bg-red-500 rounded-full flex items-center justify-center"
+                style={{
+                  left: obstacle.x,
+                  top: obstacle.y,
+                  width: obstacle.size,
+                  height: obstacle.size,
+                  transform: 'translate(-50%, -50%)'
+                }}
+              >
+                <FaSkull className="text-white" style={{ fontSize: obstacle.size * 0.4 }} />
+              </motion.div>
             ))}
             
             <div
               ref={clickAreaRef}
               onClick={handleClick}
-              className="absolute inset-0 cursor-pointer overflow-hidden"
+              className="absolute inset-0 cursor-pointer"
             >
-              <div className="absolute top-4 left-4 bg-white dark:bg-gray-800 px-3 py-1 rounded-full text-sm font-bold">
-                Score: {score}
-              </div>
-              
-              <div className="absolute top-4 right-4 bg-white dark:bg-gray-800 px-3 py-1 rounded-full text-sm font-bold">
-                Time: {timeLeft}ms
-              </div>
-              
-              {!isRageMode && (
-                <div className="text-center text-gray-400 dark:text-gray-300 text-lg">
-                  Click anywhere!
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 px-6 py-2 rounded-full shadow-lg flex items-center space-x-6">
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Time</div>
+                  <div className="font-bold">{timeLeft.toFixed(3)}s</div>
                 </div>
-              )}
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Score</div>
+                  <div className="font-bold">{score}</div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -358,125 +462,68 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center"
+            className="text-center p-8"
           >
-            <h2 className="text-3xl font-bold mb-2">Game Over!</h2>
-            <p className="text-lg mb-6">
-              You made <span className="font-bold text-blue-600">{score} clicks</span> in 1 second
-              {isRageMode && <span className="text-red-500 font-bold"> (Rage Mode)</span>}
-            </p>
+            <h2 className="text-3xl font-bold mb-4">
+              {isRageMode && scoreRef.current === 0 ? 'Game Over!' : 'Time\'s Up!'}
+            </h2>
+            
+            <div className="text-6xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600">
+              {scoreRef.current}
+              <span className="text-2xl ml-2">clicks</span>
+            </div>
             
             <div className="flex flex-wrap justify-center gap-3 mb-8">
               <button
                 onClick={() => startGame(isRageMode)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-bold transition-all hover:scale-105"
               >
-                <FaRedo className="inline mr-1" /> Play Again
+                <FaRedo className="inline mr-2" /> Try Again
               </button>
               <button
                 onClick={() => startGame(!isRageMode)}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-bold transition-all hover:scale-105"
               >
                 {isRageMode ? 'Try Normal Mode' : 'Try Rage Mode'}
               </button>
               <button
                 onClick={shareScore}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                className="px-6 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg font-bold transition-all hover:scale-105"
               >
-                <FaShareAlt className="inline mr-1" /> Share Score
+                <FaShareAlt className="inline mr-2" /> Share Score
               </button>
-            </div>
-            
-            {freeTrialEnded && !isEmbedded && (
-              <div className="mb-8 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 p-4 rounded-lg max-w-lg mx-auto">
-                <p className="text-yellow-800 dark:text-yellow-300 font-medium">
-                  You've played your free game! Create an account to continue playing and save your scores.
-                </p>
-                <button
-                  onClick={handleCreateAccount}
-                  className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
-                >
-                  Create Free Account
-                </button>
-              </div>
-            )}
-            
-            <div className="max-w-md mx-auto">
-              <h3 className="font-bold text-xl mb-4 flex items-center justify-center">
-                <FaTrophy className="text-yellow-500 mr-2" /> Leaderboard
-              </h3>
-              
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-100 dark:bg-gray-700">
-                    <tr>
-                      <th className="py-2 px-4 text-left">Rank</th>
-                      <th className="py-2 px-4 text-left">Player</th>
-                      <th className="py-2 px-4 text-right">Score</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leaderboardData.map((entry, index) => (
-                      <tr 
-                        key={index}
-                        className={`border-t border-gray-200 dark:border-gray-700 ${
-                          index < 3 ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''
-                        }`}
-                      >
-                        <td className="py-3 px-4">
-                          {index === 0 && <span className="text-yellow-500">🥇</span>}
-                          {index === 1 && <span className="text-gray-400">🥈</span>}
-                          {index === 2 && <span className="text-amber-600">🥉</span>}
-                          {index > 2 && `#${index + 1}`}
-                        </td>
-                        <td className="py-3 px-4">
-                          {entry.name} {entry.country}
-                        </td>
-                        <td className="py-3 px-4 text-right font-bold">
-                          {entry.score}
-                        </td>
-                      </tr>
-                    ))}
-                    
-                    {/* Your score */}
-                    <tr className="border-t border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
-                      <td className="py-3 px-4">You</td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={playerName}
-                          onChange={(e) => setPlayerName(e.target.value)}
-                          placeholder="Enter your name"
-                          className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded w-full max-w-[150px] dark:bg-gray-700"
-                        />
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold">
-                        {score}
-                        <button
-                          onClick={saveScore}
-                          className="ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-                        >
-                          Save
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
             </div>
           </motion.div>
         )}
       </div>
       
+      {/* Add sound toggle button */}
+      <button
+        onClick={toggleSound}
+        className="fixed bottom-4 right-4 p-3 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:scale-110 transition-transform"
+        aria-label={isSoundEnabled ? "Mute sounds" : "Unmute sounds"}
+      >
+        {isSoundEnabled ? (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 18.75l-2.25-2.25H6a1.5 1.5 0 01-1.5-1.5v-6A1.5 1.5 0 016 7.5h3.75L12 5.25v13.5z" />
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+          </svg>
+        )}
+      </button>
+      
       <style jsx>{`
         .click-ripple {
           position: absolute;
-          width: 10px;
-          height: 10px;
-          background-color: rgba(255, 255, 255, 0.7);
+          width: 4px;
+          height: 4px;
+          background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 100%);
           border-radius: 50%;
           transform: translate(-50%, -50%);
-          animation: ripple 0.5s linear;
+          animation: ripple 0.5s ease-out;
           pointer-events: none;
         }
         
