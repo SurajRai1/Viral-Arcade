@@ -103,17 +103,17 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
         throw new Error("Your browser doesn't support camera access. Try using a modern browser like Chrome, Firefox, or Edge.");
       }
       
-      // Request camera permission with specific constraints for better compatibility
+      // Request camera permission with specific constraints
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
           facingMode: "user"
         },
         audio: true 
       });
       
-      // Set up video stream with proper initialization
+      // Set up video stream
       if (videoRef.current) {
         // Reset video element
         videoRef.current.srcObject = null;
@@ -121,15 +121,13 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
         // Set new stream
         videoRef.current.srcObject = stream;
         
-        // Wait for video metadata to load before playing
+        // Wait for metadata to load before playing
         videoRef.current.onloadedmetadata = async () => {
           try {
             await videoRef.current?.play();
             console.log("Video started playing successfully");
-            setCameraActive(true);
           } catch (error) {
             console.error("Error playing video:", error);
-            setCameraActive(false);
           }
         };
       }
@@ -137,6 +135,7 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
       // Set up audio analysis
       setupAudioAnalysis(stream);
       
+      setCameraActive(true);
       setMicrophoneActive(true);
       setPermissionsGranted(true);
       setPermissionDenied(false);
@@ -714,19 +713,19 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
         {gameState === 'playing' && (
           <div className="flex flex-col md:flex-row h-full gap-6">
             {/* Camera feed */}
-            <div className="flex-1 bg-black rounded-xl overflow-hidden relative flex items-center justify-center min-h-[300px]">
+            <div className="flex-1 bg-black rounded-xl overflow-hidden relative">
               {cameraActive ? (
                 <>
                   <video
                     ref={videoRef}
-                    className="absolute top-0 left-0 w-full h-full"
+                    className="w-full h-full"
                     autoPlay
                     playsInline
                     muted
                     style={{
                       transform: 'scaleX(-1)',
                       objectFit: 'cover',
-                      display: 'block', // Ensure video is visible
+                      minHeight: '300px',
                       backgroundColor: 'black'
                     }}
                   />
