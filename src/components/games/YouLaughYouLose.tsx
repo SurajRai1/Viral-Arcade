@@ -106,10 +106,9 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
       // Request camera permission with specific constraints for better compatibility
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: {
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 },
-          facingMode: "user",
-          frameRate: { ideal: 30 }
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user"
         },
         audio: true 
       });
@@ -121,25 +120,23 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
         
         // Set new stream
         videoRef.current.srcObject = stream;
-        videoRef.current.style.transform = 'scaleX(-1)'; // Mirror the video
         
-        // Ensure video plays
-        try {
-          await videoRef.current.play();
-          console.log("Video started playing successfully");
-        } catch (error) {
-          console.error("Error playing video:", error);
-          // Try alternative method
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().catch(e => console.error("Second attempt to play failed:", e));
-          };
-        }
+        // Wait for video metadata to load before playing
+        videoRef.current.onloadedmetadata = async () => {
+          try {
+            await videoRef.current?.play();
+            console.log("Video started playing successfully");
+            setCameraActive(true);
+          } catch (error) {
+            console.error("Error playing video:", error);
+            setCameraActive(false);
+          }
+        };
       }
       
       // Set up audio analysis
       setupAudioAnalysis(stream);
       
-      setCameraActive(true);
       setMicrophoneActive(true);
       setPermissionsGranted(true);
       setPermissionDenied(false);
@@ -728,7 +725,9 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
                     muted
                     style={{
                       transform: 'scaleX(-1)',
-                      objectFit: 'cover'
+                      objectFit: 'cover',
+                      display: 'block', // Ensure video is visible
+                      backgroundColor: 'black'
                     }}
                   />
                   <canvas 

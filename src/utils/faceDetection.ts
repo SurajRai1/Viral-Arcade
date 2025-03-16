@@ -5,54 +5,29 @@ import * as faceapi from 'face-api.js';
  */
 export async function loadFaceDetectionModels(): Promise<boolean> {
   try {
-    // Try multiple CDNs in case one fails
-    const cdnUrls = [
-      'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/',
-      'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights',
-      'https://unpkg.com/face-api.js@0.22.2/weights',
-      '/models' // Fallback to local models if available
+    // Try loading from different CDNs
+    const modelUrls = [
+      '/models', // Local models
+      'https://justadudewhohacks.github.io/face-api.js/models', // GitHub CDN
+      'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights' // Raw GitHub
     ];
 
-    let loaded = false;
-    let lastError = null;
-
-    // Try each CDN until one works
-    for (const modelUrl of cdnUrls) {
+    for (const modelUrl of modelUrls) {
       try {
-        console.log(`Attempting to load face-api.js models from: ${modelUrl}`);
-        
-        // Load the models one by one with timeouts
-        await Promise.race([
+        await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout loading tinyFaceDetector')), 10000))
+          faceapi.nets.faceExpressionNet.loadFromUri(modelUrl)
         ]);
-        
-        await Promise.race([
-          faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout loading faceLandmark68Net')), 10000))
-        ]);
-        
-        await Promise.race([
-          faceapi.nets.faceExpressionNet.loadFromUri(modelUrl),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout loading faceExpressionNet')), 10000))
-        ]);
-        
-        console.log(`Successfully loaded face-api.js models from: ${modelUrl}`);
-        loaded = true;
-        break;
+        console.log('Face detection models loaded successfully from:', modelUrl);
+        return true;
       } catch (error) {
-        console.error(`Failed to load models from ${modelUrl}:`, error);
-        lastError = error;
+        console.warn(`Failed to load models from ${modelUrl}, trying next source...`);
       }
     }
 
-    if (!loaded && lastError) {
-      throw lastError;
-    }
-
-    return loaded;
+    throw new Error('Failed to load models from all sources');
   } catch (error) {
-    console.error("All attempts to load face detection models failed:", error);
+    console.error('Error loading face detection models:', error);
     return false;
   }
 }
@@ -62,23 +37,35 @@ export async function loadFaceDetectionModels(): Promise<boolean> {
  */
 export async function detectSmile(videoElement: HTMLVideoElement): Promise<boolean> {
   try {
+    // Make sure video is playing and ready
     if (videoElement.readyState !== 4) {
+      console.warn('Video not ready yet');
       return false;
     }
 
-    const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
-    const result = await faceapi.detectSingleFace(videoElement, options)
-      .withFaceLandmarks()
-      .withFaceExpressions();
+    // Detect faces using TinyFaceDetector (faster than default)
+    const detection = await faceapi.detectSingleFace(
+      videoElement,
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 224 })
+    ).withFaceExpressions();
 
-    if (result && result.expressions) {
-      // Consider a smile if happiness is above 0.7 (70%)
-      return result.expressions.happy > 0.7;
+    if (!detection) {
+      console.log('No face detected');
+      return false;
     }
-    
-    return false;
+
+    // Check if the person is happy (smiling)
+    const happyScore = detection.expressions.happy;
+    const isSmiling = happyScore > 0.7; // 70% confidence threshold
+
+    if (isSmiling) {
+      console.log('Smile detected with confidence:', happyScore);
+    }
+
+    return isSmiling;
   } catch (error) {
-    console.error("Error during smile detection:", error);
+    console.warn('Error in smile detection:', error);
     return false;
   }
+} 
 } 
