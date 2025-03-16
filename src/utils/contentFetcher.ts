@@ -1,22 +1,22 @@
+import { jokes } from '@/data/jokes';
+
 /**
- * Fetch a joke from our API
+ * Fetch a joke from OpenAI or fallback to static jokes
  */
 export async function fetchJoke(): Promise<string> {
   try {
     const response = await fetch('/api/jokes');
     const data = await response.json();
+    
+    if (!data.joke) {
+      throw new Error('No joke returned from API');
+    }
+    
     return data.joke;
   } catch (error) {
-    console.error("Error fetching joke:", error);
-    // Fallback jokes
-    const fallbackJokes = [
-      "I told my wife she was drawing her eyebrows too high. She looked surprised.",
-      "Why don't scientists trust atoms? Because they make up everything!",
-      "What do you call a fake noodle? An impasta!",
-      "I'm reading a book about anti-gravity. It's impossible to put down!",
-      "Did you hear about the mathematician who's afraid of negative numbers? He'll stop at nothing to avoid them."
-    ];
-    return fallbackJokes[Math.floor(Math.random() * fallbackJokes.length)];
+    console.warn('Error fetching joke from API, using fallback:', error);
+    // Return a random joke from our static collection
+    return jokes[Math.floor(Math.random() * jokes.length)];
   }
 }
 
@@ -65,19 +65,32 @@ export async function fetchMemeText(): Promise<string> {
 }
 
 /**
- * Get a random content item (joke, roast, or meme text)
+ * Get random content (joke or roast)
  */
 export async function getRandomContent(): Promise<{ type: 'joke' | 'roast' | 'memeText', content: string }> {
-  const randomType = Math.floor(Math.random() * 3);
-  
-  switch (randomType) {
-    case 0:
-      return { type: 'joke', content: await fetchJoke() };
-    case 1:
-      return { type: 'roast', content: await fetchRoast() };
-    case 2:
-      return { type: 'memeText', content: await fetchMemeText() };
-    default:
-      return { type: 'joke', content: await fetchJoke() };
+  try {
+    // 70% chance for jokes, 30% chance for roasts
+    const isJoke = Math.random() < 0.7;
+    
+    if (isJoke) {
+      const joke = await fetchJoke();
+      return { type: 'joke', content: joke };
+    } else {
+      const response = await fetch('/api/roasts');
+      const data = await response.json();
+      
+      if (!data.roast) {
+        throw new Error('No roast returned from API');
+      }
+      
+      return { type: 'roast', content: data.roast };
+    }
+  } catch (error) {
+    console.warn('Error fetching content, using fallback:', error);
+    // Always fallback to a joke if there's an error
+    return { 
+      type: 'joke', 
+      content: jokes[Math.floor(Math.random() * jokes.length)]
+    };
   }
 } 

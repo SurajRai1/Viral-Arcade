@@ -717,46 +717,42 @@ export default function YouLaughYouLose({ isEmbedded = false }: YouLaughYouLoseP
         {gameState === 'playing' && (
           <div className="flex flex-col md:flex-row h-full gap-6">
             {/* Camera feed */}
-            <div className="flex-1 bg-black rounded-xl overflow-hidden relative flex items-center justify-center min-h-[200px] md:min-h-[300px]">
+            <div className="flex-1 bg-black rounded-xl overflow-hidden relative flex items-center justify-center min-h-[300px]">
               {cameraActive ? (
                 <>
                   <video
                     ref={videoRef}
-                    className="w-full h-full object-contain"
+                    className="absolute top-0 left-0 w-full h-full"
                     autoPlay
                     playsInline
                     muted
                     style={{
-                      transform: 'scaleX(-1)', // Mirror the video
-                      minWidth: '100%',
-                      minHeight: '100%',
-                      width: 'auto',
-                      height: 'auto',
-                      backgroundColor: 'black'
+                      transform: 'scaleX(-1)',
+                      objectFit: 'cover'
                     }}
                   />
                   <canvas 
                     ref={canvasRef} 
                     className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-0"
                   />
+                  
+                  {/* Timer overlay */}
+                  <div className="absolute top-4 right-4 bg-white/90 dark:bg-gray-800/90 px-3 py-1 rounded-full text-sm font-bold z-10">
+                    Time: {timeLeft}s
+                  </div>
+                  
+                  {/* Microphone indicator */}
+                  {microphoneActive && (
+                    <div className="absolute bottom-4 left-4 bg-white/90 dark:bg-gray-800/90 px-3 py-1 rounded-full text-sm font-bold flex items-center z-10">
+                      <FaMicrophone className="mr-1 text-red-500 animate-pulse" />
+                      <span>Listening</span>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="text-white text-center p-4">
                   <FaCamera className="text-4xl mx-auto mb-2" />
                   <p>Camera not available</p>
-                </div>
-              )}
-              
-              {/* Timer overlay */}
-              <div className="absolute top-4 right-4 bg-white dark:bg-gray-800 px-3 py-1 rounded-full text-sm font-bold">
-                Time: {timeLeft}s
-              </div>
-              
-              {/* Microphone indicator */}
-              {microphoneActive && (
-                <div className="absolute bottom-4 left-4 bg-white dark:bg-gray-800 px-3 py-1 rounded-full text-sm font-bold flex items-center">
-                  <FaMicrophone className="mr-1 text-red-500 animate-pulse" />
-                  <span>Listening</span>
                 </div>
               )}
             </div>
