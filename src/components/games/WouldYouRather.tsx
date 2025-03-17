@@ -26,6 +26,8 @@ interface PersonalityAnalysis {
   icon: string;
 }
 
+type Category = 'funny' | 'adventure' | 'superpowers' | 'life-decisions' | 'time-travel' | 'food' | 'career' | 'technology' | 'random';
+
 interface WouldYouRatherProps {
   isEmbedded?: boolean;
 }
