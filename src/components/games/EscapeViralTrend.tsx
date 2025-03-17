@@ -15,7 +15,7 @@ export default function EscapeViralTrend() {
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
-  const animationFrameId = useRef<number>();
+  const animationFrameId = useRef<number | undefined>(undefined);
   const lastTime = useRef(performance.now());
 
   const player = useRef({
@@ -107,7 +107,7 @@ export default function EscapeViralTrend() {
         setGameStatus('gameover');
         if (score > highScore) {
           setHighScore(score);
-          setShowConfetti(true);
+      setShowConfetti(true);
         }
         return false;
       }
@@ -147,7 +147,7 @@ export default function EscapeViralTrend() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameStatus]);
-
+  
   return (
     <div className="w-full h-full min-h-[600px] flex flex-col relative bg-gray-900">
       {showConfetti && (
@@ -158,7 +158,7 @@ export default function EscapeViralTrend() {
           numberOfPieces={200}
         />
       )}
-
+      
       <div className="flex-1 p-6 relative flex flex-col">
         <AnimatePresence mode="wait">
           {gameStatus === 'intro' && (
@@ -172,17 +172,17 @@ export default function EscapeViralTrend() {
               <p className="text-xl mb-8">
                 Stay sane in the age of viral trends! Dodge the social media challenges and keep your cringe meter low.
               </p>
-              <button
+                <button
                 onClick={startGame}
                 className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl font-bold text-xl transition-all transform hover:scale-105 flex items-center justify-center mx-auto"
               >
                 <FaPlay className="mr-2" /> Start Game
-              </button>
+                </button>
             </motion.div>
-          )}
-
+        )}
+        
           {gameStatus === 'playing' && (
-            <motion.div
+          <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -194,7 +194,7 @@ export default function EscapeViralTrend() {
                 </div>
                 <div className="bg-gray-800 bg-opacity-90 px-4 py-2 rounded-full">
                   <span className="text-white font-bold">High Score: {highScore}</span>
-                </div>
+            </div>
               </div>
 
               <canvas
@@ -206,15 +206,15 @@ export default function EscapeViralTrend() {
               <div className="absolute bottom-4 left-0 right-0 text-center z-10">
                 <div className="inline-block bg-black/50 text-white px-4 py-2 rounded-full text-sm">
                   Use ← → arrow keys to move
-                </div>
               </div>
-            </motion.div>
-          )}
-
+              </div>
+                </motion.div>
+              )}
+              
           {gameStatus === 'gameover' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               className="text-center text-white"
             >
@@ -227,8 +227,8 @@ export default function EscapeViralTrend() {
               >
                 <FaPlay className="mr-2" /> Play Again
               </button>
-            </motion.div>
-          )}
+          </motion.div>
+        )}
         </AnimatePresence>
       </div>
     </div>

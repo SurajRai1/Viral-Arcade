@@ -84,8 +84,7 @@ export async function POST(req: Request) {
 
       return NextResponse.json(formattedResponse);
     }
-  } catch (error) {
-    console.error('Error:', error);
+  } catch {
     return NextResponse.json(
       { error: 'Failed to generate question' },
       { status: 500 }

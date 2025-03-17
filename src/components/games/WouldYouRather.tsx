@@ -33,15 +33,14 @@ interface WouldYouRatherProps {
 export default function WouldYouRather({ isEmbedded = false }: WouldYouRatherProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<(0 | 1 | null)[]>([]);
-  const [showResults, setShowResults] = useState(false);
-  const [score, setScore] = useState(0);
+  const [selectedAnswers, setSelectedAnswers] = useState<(0 | 1 | null)[]>(new Array(5).fill(null));
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('random');
   const [error, setError] = useState<string | null>(null);
+  const [showResults, setShowResults] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [personalityAnalysis, setPersonalityAnalysis] = useState<PersonalityAnalysis | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Category>('funny');
 
   const fetchNewQuestion = React.useCallback(async () => {
     try {
@@ -195,7 +194,7 @@ export default function WouldYouRather({ isEmbedded = false }: WouldYouRatherPro
       console.error('Error in handleAnswer:', error);
       setError('An error occurred. Please try again.');
     }
-  }, [currentQuestionIndex, questions.length, selectedAnswers, fetchNewQuestion, analyzePersonality]);
+  }, [currentQuestionIndex, questions.length, selectedAnswers, fetchNewQuestion, analyzePersonality, questions]);
 
   const handleTouchStart = React.useCallback((e: React.TouchEvent, answerIndex: 0 | 1) => {
     // Remove preventDefault and handle the touch event directly
@@ -293,7 +292,7 @@ export default function WouldYouRather({ isEmbedded = false }: WouldYouRatherPro
               <div className="mb-8">
                 <select
                   value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  onChange={(e) => setSelectedCategory(e.target.value as Category)}
                   className="bg-gray-800 text-white px-4 py-2 rounded-lg"
                   disabled={generating}
                 >
