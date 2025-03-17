@@ -12,7 +12,7 @@ const openai = new OpenAI({
 export async function generateJoke(): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -44,7 +44,7 @@ export async function generateJoke(): Promise<string> {
 export async function generateRoast(): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",

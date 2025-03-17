@@ -1,164 +1,275 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { FaShareAlt, FaTrophy, FaVoteYea, FaUserPlus } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FaRedo, FaSpinner } from 'react-icons/fa';
 import Confetti from 'react-confetti';
+import { categories } from '@/utils/categories';
 
-// Sample would you rather questions
-const wouldYouRatherQuestions = [
-  {
-    id: 1,
-    optionA: 'Have the ability to fly',
-    optionB: 'Have the ability to read minds',
-    stats: { optionA: 65, optionB: 35 }
-  },
-  {
-    id: 2,
-    optionA: 'Be a famous movie star',
-    optionB: 'Be a famous scientist',
-    stats: { optionA: 48, optionB: 52 }
-  },
-  {
-    id: 3,
-    optionA: 'Live in a world with no internet',
-    optionB: 'Live in a world with no air conditioning or heating',
-    stats: { optionA: 22, optionB: 78 }
-  },
-  {
-    id: 4,
-    optionA: 'Have unlimited money but no friends',
-    optionB: 'Have amazing friends but always be broke',
-    stats: { optionA: 31, optionB: 69 }
-  },
-  {
-    id: 5,
-    optionA: 'Know how you will die',
-    optionB: 'Know when you will die',
-    stats: { optionA: 42, optionB: 58 }
-  },
-  {
-    id: 6,
-    optionA: 'Be able to teleport but only to places you\'ve been before',
-    optionB: 'Be able to fly but only at walking speed',
-    stats: { optionA: 83, optionB: 17 }
-  },
-  {
-    id: 7,
-    optionA: 'Have a photographic memory',
-    optionB: 'Have an IQ of 200',
-    stats: { optionA: 61, optionB: 39 }
-  },
-  {
-    id: 8,
-    optionA: 'Be fluent in all languages',
-    optionB: 'Be a master of all musical instruments',
-    stats: { optionA: 74, optionB: 26 }
-  },
-];
+interface Question {
+  question: string;
+  optionA: {
+    text: string;
+    consequence: string;
+  };
+  optionB: {
+    text: string;
+    consequence: string;
+  };
+  funFact: string;
+}
+
+interface PersonalityAnalysis {
+  title: string;
+  description: string;
+  traits: string[];
+  icon: string;
+}
 
 interface WouldYouRatherProps {
   isEmbedded?: boolean;
 }
 
 export default function WouldYouRather({ isEmbedded = false }: WouldYouRatherProps) {
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'result'>('intro');
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<Array<'A' | 'B' | null>>([]);
-  const [showStats, setShowStats] = useState(false);
+  const [selectedAnswers, setSelectedAnswers] = useState<(0 | 1 | null)[]>([]);
+  const [showResults, setShowResults] = useState(false);
   const [score, setScore] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('random');
+  const [error, setError] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [showAccountPrompt, setShowAccountPrompt] = useState(false);
-  const [hasPlayedFreeGame, setHasPlayedFreeGame] = useState(false);
-  const [freeTrialEnded, setFreeTrialEnded] = useState(false);
+  const [personalityAnalysis, setPersonalityAnalysis] = useState<PersonalityAnalysis | null>(null);
 
-  const currentQuestion = wouldYouRatherQuestions[currentQuestionIndex];
+  const fetchNewQuestion = React.useCallback(async () => {
+    try {
+      setGenerating(true);
+      setError(null);
+      
+      const response = await fetch('/api/would-you-rather', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ category: selectedCategory }),
+      });
 
-  // Start the game
-  const startGame = () => {
-    // If free trial ended and not embedded, show account prompt
-    if (freeTrialEnded && !isEmbedded) {
-      setShowAccountPrompt(true);
+      if (!response.ok) {
+        throw new Error('Failed to fetch question');
+      }
+
+      const newQuestion = await response.json();
+      
+      // Ensure we have a valid question before updating state
+      if (!newQuestion || !newQuestion.question || !newQuestion.optionA || !newQuestion.optionB) {
+        throw new Error('Invalid question format received');
+      }
+
+      // Update questions state with the new question
+      setQuestions(prev => [...prev, newQuestion]);
+      
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching question:', err);
+      setError('Failed to generate question. Please try again.');
+      setLoading(false);
+    } finally {
+      setGenerating(false);
+    }
+  }, [selectedCategory]);
+
+  const restartGame = React.useCallback(() => {
+    console.log('Restarting game...');
+    setQuestions([]);
+    setCurrentQuestionIndex(0);
+    setSelectedAnswers(new Array(5).fill(null));
+    setShowResults(false);
+    setShowConfetti(false);
+    setLoading(true);
+    setError(null);
+    fetchNewQuestion();
+  }, [fetchNewQuestion]);
+
+  const analyzePersonality = React.useCallback((questions: Question[], answers: (0 | 1 | null)[]) => {
+    // Count different types of choices
+    let adventurousChoices = 0;
+    let cautiousChoices = 0;
+    let selflessChoices = 0;
+    let selfishChoices = 0;
+
+    questions.forEach((question, index) => {
+      const answer = answers[index];
+      if (answer === null) return;
+
+      // Analyze based on consequences
+      const chosenOption = answer === 0 ? question.optionA : question.optionB;
+      const consequence = chosenOption.consequence.toLowerCase();
+
+      if (consequence.includes('adventure') || consequence.includes('risk')) {
+        adventurousChoices++;
+      }
+      if (consequence.includes('safe') || consequence.includes('secure')) {
+        cautiousChoices++;
+      }
+      if (consequence.includes('help') || consequence.includes('others')) {
+        selflessChoices++;
+      }
+      if (consequence.includes('benefit') || consequence.includes('gain')) {
+        selfishChoices++;
+      }
+    });
+
+    // Determine personality type
+    let analysis: PersonalityAnalysis;
+    if (adventurousChoices > cautiousChoices) {
+      if (selflessChoices > selfishChoices) {
+        analysis = {
+          title: "The Noble Adventurer",
+          description: "You're a courageous soul who values both excitement and helping others. Your choices show a willingness to take risks for the greater good.",
+          traits: ["Brave", "Altruistic", "Spontaneous", "Empathetic"],
+          icon: "🌟"
+        };
+      } else {
+        analysis = {
+          title: "The Thrill Seeker",
+          description: "You live life on the edge and aren't afraid to chase your own happiness. Your choices prioritize excitement and personal gain.",
+          traits: ["Bold", "Independent", "Ambitious", "Free-spirited"],
+          icon: "⚡"
+        };
+      }
+    } else {
+      if (selflessChoices > selfishChoices) {
+        analysis = {
+          title: "The Wise Guardian",
+          description: "You're a thoughtful person who values stability and helping others. Your choices show careful consideration and concern for others.",
+          traits: ["Cautious", "Caring", "Reliable", "Thoughtful"],
+          icon: "🛡️"
+        };
+      } else {
+        analysis = {
+          title: "The Strategic Thinker",
+          description: "You're a careful planner who values security and personal success. Your choices show a preference for safe, calculated decisions.",
+          traits: ["Prudent", "Focused", "Determined", "Practical"],
+          icon: "🎯"
+        };
+      }
+    }
+
+    return analysis;
+  }, []);
+
+  const handleAnswer = React.useCallback(async (answerIndex: 0 | 1) => {
+    // Prevent multiple clicks while processing
+    if (selectedAnswers[currentQuestionIndex] !== null) {
       return;
     }
-    
-    setGameState('playing');
-    setCurrentQuestionIndex(0);
-    setSelectedAnswers(Array(wouldYouRatherQuestions.length).fill(null));
-    setScore(0);
-    setShowStats(false);
-  };
 
-  // Handle answer selection
-  const handleAnswerSelect = (option: 'A' | 'B') => {
-    if (showStats) return; // Prevent selection when showing stats
-    
-    const newSelectedAnswers = [...selectedAnswers];
-    newSelectedAnswers[currentQuestionIndex] = option;
-    setSelectedAnswers(newSelectedAnswers);
-    
-    // Show stats after selection
-    setShowStats(true);
-    
-    // Add points based on how many people agree with you
-    const pointsForAgreement = option === 'A' 
-      ? Math.round(currentQuestion.stats.optionA) 
-      : Math.round(currentQuestion.stats.optionB);
-    
-    setScore(prev => prev + pointsForAgreement);
-    
-    // Auto-advance to next question after a delay
-    setTimeout(() => {
-      if (currentQuestionIndex < wouldYouRatherQuestions.length - 1) {
-        setCurrentQuestionIndex(prev => prev + 1);
-        setShowStats(false);
-      } else {
-        endGame();
+    // Update selected answers first
+    setSelectedAnswers(prev => {
+      const newAnswers = [...prev];
+      newAnswers[currentQuestionIndex] = answerIndex;
+      return newAnswers;
+    });
+
+    try {
+      // If we're at the last question and need more questions
+      if (currentQuestionIndex === questions.length - 1 && questions.length < 5) {
+        await fetchNewQuestion();
       }
-    }, 3000);
-  };
-  
-  // End the game
-  const endGame = () => {
-    setGameState('result');
-    setShowConfetti(true);
-    
-    // Hide confetti after 5 seconds
-    setTimeout(() => {
-      setShowConfetti(false);
-    }, 5000);
-    
-    // Set free trial as ended if this is their first game and not embedded
-    if (!hasPlayedFreeGame && !isEmbedded) {
-      setHasPlayedFreeGame(true);
-      setFreeTrialEnded(true);
-      
-      // Show account prompt after a short delay
-      setTimeout(() => {
-        setShowAccountPrompt(true);
-      }, 1500);
+
+      // Wait for the delay before moving to next question
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Check if we should move to next question or show results
+      if (currentQuestionIndex < questions.length - 1) {
+        setCurrentQuestionIndex(prev => prev + 1);
+      } else if (questions.length === 5) {
+        const analysis = analyzePersonality(questions, selectedAnswers);
+        setPersonalityAnalysis(analysis);
+        setShowResults(true);
+        setShowConfetti(true);
+      }
+    } catch (error) {
+      console.error('Error in handleAnswer:', error);
+      setError('An error occurred. Please try again.');
     }
-  };
-  
-  // Share results to social media
-  const shareResults = () => {
-    // In a real app, this would integrate with social media APIs
-    alert(`Sharing results: You scored ${score} points in Would You Rather!`);
-  };
+  }, [currentQuestionIndex, questions.length, selectedAnswers, fetchNewQuestion, analyzePersonality]);
 
-  // Add a function to handle account creation redirect
-  const handleCreateAccount = () => {
-    // Redirect to the signup page with the game name as a query parameter
-    window.location.href = '/signup?from=would-you-rather';
-  };
+  const handleTouchStart = React.useCallback((e: React.TouchEvent, answerIndex: 0 | 1) => {
+    // Remove preventDefault and handle the touch event directly
+    handleAnswer(answerIndex);
+  }, [handleAnswer]);
 
-  // Add a function to continue without account
-  const continueWithoutAccount = () => {
-    setShowAccountPrompt(false);
-  };
+  // Add effect to handle initial game setup
+  useEffect(() => {
+    const initGame = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        setSelectedAnswers(new Array(5).fill(null));
+        await fetchNewQuestion();
+      } catch (error) {
+        console.error('Error initializing game:', error);
+        setError('Failed to start game. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    initGame();
+  }, [fetchNewQuestion]);
+
+  // Add effect to handle question fetching
+  useEffect(() => {
+    const fetchNextQuestion = async () => {
+      if (questions.length < 5 && currentQuestionIndex === questions.length - 1 && !showResults) {
+        try {
+          await fetchNewQuestion();
+        } catch (error) {
+          console.error('Error fetching next question:', error);
+          setError('Failed to fetch next question. Please try again.');
+        }
+      }
+    };
+    fetchNextQuestion();
+  }, [currentQuestionIndex, questions.length, fetchNewQuestion, showResults]);
+
+  // Remove redundant effects and keep only the essential ones
+  const currentQuestion = questions[currentQuestionIndex];
+
+  if (loading && !currentQuestion) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <FaSpinner className="animate-spin text-4xl text-blue-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] p-4">
+        <p className="text-red-500 mb-4">{error}</p>
+        <button
+          onClick={restartGame}
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  if (!currentQuestion) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <FaSpinner className="animate-spin text-4xl text-blue-500" />
+      </div>
+    );
+  }
   
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className={`flex flex-col ${!isEmbedded ? 'min-h-screen' : 'min-h-[600px]'} bg-gray-900`}>
       {showConfetti && (
         <Confetti
           width={typeof window !== 'undefined' ? window.innerWidth : 500}
@@ -168,275 +279,160 @@ export default function WouldYouRather({ isEmbedded = false }: WouldYouRatherPro
         />
       )}
       
-      <div className="flex-1 p-6 overflow-y-auto">
-        {/* Account prompt overlay */}
-        {showAccountPrompt && !isEmbedded && (
-          <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+      <div className="flex-1 container mx-auto px-4 py-8">
+        <AnimatePresence mode="wait">
+          {!showResults ? (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white dark:bg-gray-800 rounded-xl p-8 max-w-md w-full"
+              key="question"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="max-w-4xl mx-auto"
             >
-              <h2 className="text-2xl font-bold mb-2">You've Completed Your Free Game!</h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Create an account to play unlimited games and save your scores.
-              </p>
-              
-              <div className="flex flex-col gap-4">
-                <button
-                  onClick={handleCreateAccount}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center"
+              {/* Category Selector */}
+              <div className="mb-8">
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="bg-gray-800 text-white px-4 py-2 rounded-lg"
+                  disabled={generating}
                 >
-                  <FaUserPlus className="mr-2" /> Create Free Account
-                </button>
-                
-                <button
-                  onClick={continueWithoutAccount}
-                  className="w-full py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-bold"
-                >
-                  Maybe Later
-                </button>
+                  <option value="random">Random</option>
+                  {categories.map((category) => (
+                    <option key={category} value={category.toLowerCase()}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </motion.div>
-          </div>
-        )}
-        
-        {gameState === 'intro' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center"
-          >
-            <h1 className="text-3xl font-bold mb-6">Would You Rather?</h1>
-            <p className="text-lg mb-8">
-              Face impossible choices and see how your answers compare with others!
-            </p>
-            
-            <button
-              onClick={startGame}
-              className="py-4 px-8 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg transition-colors mx-auto mb-8 flex items-center justify-center"
-            >
-              <FaVoteYea className="mr-2" /> Start Game
-            </button>
-            
-            <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg max-w-lg mx-auto">
-              <h2 className="font-bold text-lg mb-2">How to Play:</h2>
-              <ul className="text-left list-disc pl-5 space-y-1">
-                <li>You'll be presented with "Would You Rather" scenarios</li>
-                <li>Choose the option you prefer</li>
-                <li>See how your answers compare with other players</li>
-                <li>The more your answers align with the majority, the higher your score</li>
-                <li>Answer all questions to see your final score</li>
-              </ul>
-            </div>
-            
-            {freeTrialEnded && !isEmbedded && (
-              <div className="mt-6 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 p-4 rounded-lg max-w-lg mx-auto">
-                <p className="text-yellow-800 dark:text-yellow-300 font-medium">
-                  You've played your free game! Create an account to continue playing and save your scores.
-                </p>
-                <button
-                  onClick={handleCreateAccount}
-                  className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
-                >
-                  Create Free Account
-                </button>
+
+              {/* Progress Bar */}
+              <div className="mb-8">
+                <div className="flex justify-between text-gray-400 mb-2">
+                  <span>Question {currentQuestionIndex + 1}/5</span>
+                  <span>{Math.round(((currentQuestionIndex + 1) / 5) * 100)}%</span>
               </div>
-            )}
-          </motion.div>
-        )}
-        
-        {/* Playing screen */}
-        {gameState === 'playing' && currentQuestion && (
-          <div className="max-w-4xl mx-auto">
-            {/* Progress */}
-            <div className="flex justify-between items-center mb-4">
-              <div className="text-sm font-medium">
-                Question {currentQuestionIndex + 1}/{wouldYouRatherQuestions.length}
-              </div>
-              <div className="text-sm font-medium">
-                Score: {score}
+                <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 transition-all duration-500"
+                    style={{ width: `${((currentQuestionIndex + 1) / 5) * 100}%` }}
+                  />
               </div>
             </div>
             
-            {/* Progress bar */}
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-6">
-              <div
-                className="bg-gradient-to-r from-purple-600 to-pink-600 h-2 rounded-full"
-                style={{ width: `${((currentQuestionIndex + 1) / wouldYouRatherQuestions.length) * 100}%` }}
-              ></div>
-            </div>
-            
-            <h2 className="text-2xl font-bold text-center mb-8">Would you rather...</h2>
+              {/* Question */}
+              <div className="bg-gray-800 rounded-xl p-6 mb-8">
+                <h2 className="text-2xl font-bold text-white mb-8 text-center">
+                  {currentQuestion.question}
+                </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Option A */}
+                  {[currentQuestion.optionA, currentQuestion.optionB].map((option, index) => {
+                    const isSelected = selectedAnswers[currentQuestionIndex] === index;
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => handleAnswer(index as 0 | 1)}
+                        onTouchStart={(e) => handleTouchStart(e, index as 0 | 1)}
+                        disabled={selectedAnswers[currentQuestionIndex] !== null}
+                        className={`p-6 rounded-xl text-white text-lg font-semibold transition-all transform active:scale-95 ${
+                          isSelected
+                            ? 'bg-blue-600'
+                            : selectedAnswers[currentQuestionIndex] !== null
+                            ? 'bg-gray-700 opacity-50'
+                            : 'bg-gray-700 hover:bg-gray-600 cursor-pointer'
+                        }`}
+                        style={{ 
+                          WebkitTapHighlightColor: 'transparent',
+                          touchAction: 'none'
+                        }}
+                      >
+                        <div className="pointer-events-none">
+                          {option.text}
+                          {isSelected && (
               <motion.div
-                whileHover={!showStats ? { scale: 1.02 } : {}}
-                className={`bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden cursor-pointer transition-all ${
-                  selectedAnswers[currentQuestionIndex] === 'A' ? 'ring-4 ring-purple-500' : ''
-                }`}
-                onClick={() => !showStats && handleAnswerSelect('A')}
-              >
-                <div className="p-6 h-full flex flex-col">
-                  <div className="flex-grow flex items-center justify-center text-center p-4">
-                    <h3 className="text-xl font-semibold">{currentQuestion.optionA}</h3>
-                  </div>
-                  
-                  {showStats && (
-                    <div className="mt-4">
-                      <div className="relative pt-1">
-                        <div className="flex mb-2 items-center justify-between">
-                          <div>
-                            <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-purple-200 text-purple-800">
-                              Option A
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-xs font-semibold inline-block text-purple-800">
-                              {currentQuestion.stats.optionA}%
-                            </span>
-                          </div>
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="mt-4 text-sm font-normal text-blue-200"
+                            >
+                              {option.consequence}
+                            </motion.div>
+                          )}
                         </div>
-                        <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-purple-200">
-                          <div
-                            style={{ width: `${currentQuestion.stats.optionA}%` }}
-                            className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-purple-500"
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                      </button>
+                    );
+                  })}
                 </div>
-              </motion.div>
               
-              {/* Option B */}
+                {selectedAnswers[currentQuestionIndex] !== null && (
               <motion.div
-                whileHover={!showStats ? { scale: 1.02 } : {}}
-                className={`bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden cursor-pointer transition-all ${
-                  selectedAnswers[currentQuestionIndex] === 'B' ? 'ring-4 ring-pink-500' : ''
-                }`}
-                onClick={() => !showStats && handleAnswerSelect('B')}
-              >
-                <div className="p-6 h-full flex flex-col">
-                  <div className="flex-grow flex items-center justify-center text-center p-4">
-                    <h3 className="text-xl font-semibold">{currentQuestion.optionB}</h3>
-                  </div>
-                  
-                  {showStats && (
-                    <div className="mt-4">
-                      <div className="relative pt-1">
-                        <div className="flex mb-2 items-center justify-between">
-                          <div>
-                            <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-pink-200 text-pink-800">
-                              Option B
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-xs font-semibold inline-block text-pink-800">
-                              {currentQuestion.stats.optionB}%
-                            </span>
-                          </div>
-                        </div>
-                        <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-pink-200">
-                          <div
-                            style={{ width: `${currentQuestion.stats.optionB}%` }}
-                            className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-pink-500"
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-6 text-gray-400 text-center"
+                  >
+                    <p className="font-semibold text-blue-400">Fun Fact:</p>
+                    <p>{currentQuestion.funFact}</p>
+                  </motion.div>
                   )}
                 </div>
               </motion.div>
-            </div>
-            
-            {showStats && (
-              <div className="text-center mt-6 text-gray-600 dark:text-gray-400">
-                <p>
-                  {selectedAnswers[currentQuestionIndex] === 'A' 
-                    ? `You agree with ${currentQuestion.stats.optionA}% of players!` 
-                    : `You agree with ${currentQuestion.stats.optionB}% of players!`}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Result screen */}
-        {gameState === 'result' && (
+          ) : (
+            <motion.div
+              key="results"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="max-w-2xl mx-auto text-center"
+            >
+              <h2 className="text-3xl font-bold text-white mb-8">Game Complete!</h2>
+              
+              {/* Personality Analysis */}
+              {personalityAnalysis && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center"
-          >
-            <h2 className="text-3xl font-bold mb-2">Game Complete!</h2>
-            <p className="text-lg mb-6">
-              You scored <span className="font-bold text-blue-600">{score} points</span>!
-            </p>
-            
-            <div className="flex flex-wrap justify-center gap-3 mb-8">
-              <button
-                onClick={startGame}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-              >
-                Play Again
-              </button>
-              <button
-                onClick={shareResults}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-              >
-                <FaShareAlt className="inline mr-1" /> Share Results
-              </button>
-            </div>
-            
-            {freeTrialEnded && !isEmbedded && (
-              <div className="mb-8 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 p-4 rounded-lg max-w-lg mx-auto">
-                <p className="text-yellow-800 dark:text-yellow-300 font-medium">
-                  You've played your free game! Create an account to continue playing and save your scores.
-                </p>
-                <button
-                  onClick={handleCreateAccount}
-                  className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+                  className="bg-gray-800 rounded-xl p-6 mb-8"
                 >
-                  Create Free Account
-                </button>
+                  <div className="text-4xl mb-4">{personalityAnalysis.icon}</div>
+                  <h3 className="text-2xl font-bold text-white mb-2">{personalityAnalysis.title}</h3>
+                  <p className="text-gray-300 mb-4">{personalityAnalysis.description}</p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {personalityAnalysis.traits.map((trait, index) => (
+                      <span
+                        key={index}
+                        className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm"
+                      >
+                        {trait}
+                      </span>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Choices Summary */}
+              <div className="bg-gray-800 rounded-xl p-6 mb-8">
+                <h3 className="text-xl font-semibold text-white mb-4">Your Choices:</h3>
+                {questions.map((question, index) => (
+                  <div key={index} className="mb-6 last:mb-0">
+                    <p className="text-gray-400 mb-2">{question.question}</p>
+                    <p className="text-blue-400">
+                      You chose: {selectedAnswers[index] === 0 ? question.optionA.text : question.optionB.text}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {selectedAnswers[index] === 0 ? question.optionA.consequence : question.optionB.consequence}
+                    </p>
+                  </div>
+                ))}
               </div>
-            )}
-            
-            <div className="max-w-md mx-auto">
-              <h3 className="font-bold text-xl mb-4 flex items-center justify-center">
-                <FaTrophy className="text-yellow-500 mr-2" /> Your Answers
-              </h3>
-              
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-                {wouldYouRatherQuestions.map((question, index) => {
-                  const selected = selectedAnswers[index];
-                  const selectedPercentage = selected === 'A' 
-                    ? question.stats.optionA 
-                    : question.stats.optionB;
-                  
-                  return (
-                    <div 
-                      key={question.id}
-                      className="p-4 border-b border-gray-200 dark:border-gray-700 last:border-0"
-                    >
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-bold">Question {index + 1}</span>
-                        <span className="text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-1 rounded">
-                          {selected === 'A' ? 'Option A' : 'Option B'}: {Math.round(selectedPercentage)}%
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {selected === 'A' ? question.optionA : question.optionB}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+
+              <button
+                onClick={restartGame}
+                className="px-8 py-4 bg-blue-500 text-white rounded-xl font-bold text-xl transition-all transform hover:scale-105 hover:bg-blue-600 flex items-center justify-center mx-auto"
+              >
+                <FaRedo className="mr-2" /> Play Again
+              </button>
           </motion.div>
         )}
+        </AnimatePresence>
       </div>
     </div>
   );

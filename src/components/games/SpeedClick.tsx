@@ -164,7 +164,7 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
       
       const elapsed = (performance.now() - gameStartTimeRef.current) / 1000;
       if (elapsed >= 1) {
-        endGame();
+      endGame();
       } else {
         setTimeLeft(1 - elapsed);
         animationFrameRef.current = requestAnimationFrame(updateTimer);
@@ -254,15 +254,15 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
       scoreRef.current += 1;
       setScore(scoreRef.current);
       playSound(clickSoundRef);
-      
-      // Visual feedback for click
-      if (clickAreaRef.current) {
-        const ripple = document.createElement('span');
-        ripple.classList.add('click-ripple');
+    
+    // Visual feedback for click
+    if (clickAreaRef.current) {
+      const ripple = document.createElement('span');
+      ripple.classList.add('click-ripple');
         ripple.style.left = `${clickX}px`;
         ripple.style.top = `${clickY}px`;
-        clickAreaRef.current.appendChild(ripple);
-        
+      clickAreaRef.current.appendChild(ripple);
+      
         setTimeout(() => ripple.remove(), 500);
       }
     }
@@ -448,7 +448,7 @@ export default function SpeedClick({ isEmbedded = false }: SpeedClickProps) {
                 <div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">Time</div>
                   <div className="font-bold">{timeLeft.toFixed(3)}s</div>
-                </div>
+              </div>
                 <div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">Score</div>
                   <div className="font-bold">{score}</div>

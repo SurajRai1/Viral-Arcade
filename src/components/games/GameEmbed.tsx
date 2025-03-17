@@ -344,8 +344,8 @@ export default function GameEmbed({ gameId, onClose }: GameEmbedProps) {
           >
             <div className="flex items-center">
               <h2 className="text-xl font-bold text-white drop-shadow-md mr-2">
-                {gameId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-              </h2>
+              {gameId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+            </h2>
               <motion.button
                 onClick={toggleFavorite}
                 whileHover={{ scale: 1.1 }}
@@ -389,15 +389,15 @@ export default function GameEmbed({ gameId, onClose }: GameEmbedProps) {
               </motion.button>
               
               {!isMobile && (
-                <motion.button
-                  onClick={toggleFullscreen}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="p-2 text-white hover:text-gray-200 transition-colors"
-                  aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                >
-                  {isFullscreen ? <FaCompress /> : <FaExpand />}
-                </motion.button>
+              <motion.button
+                onClick={toggleFullscreen}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="p-2 text-white hover:text-gray-200 transition-colors"
+                aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              >
+                {isFullscreen ? <FaCompress /> : <FaExpand />}
+              </motion.button>
               )}
               
               <motion.button
@@ -413,7 +413,7 @@ export default function GameEmbed({ gameId, onClose }: GameEmbedProps) {
           </motion.div>
         )}
       </AnimatePresence>
-      
+
       {/* Game tips overlay */}
       <AnimatePresence>
         {showTips && (
