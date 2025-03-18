@@ -5,88 +5,93 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const categories = [
-  'Funny',
-  'Adventure',
-  'Superpowers',
-  'Life Decisions',
-  'Time Travel',
-  'Food',
-  'Career',
-  'Technology'
-];
+type Category = 'funny' | 'adventure' | 'superpowers' | 'life-decisions' | 'time-travel' | 'food' | 'career' | 'technology' | 'random';
 
-export async function POST(req: Request) {
+const categoryPrompts: Record<Category, string> = {
+  funny: 'Create a humorous and entertaining "Would You Rather" question that will make people laugh.',
+  adventure: 'Create an exciting and adventurous "Would You Rather" question about thrilling experiences.',
+  superpowers: 'Create a "Would You Rather" question about having different superpowers or abilities.',
+  'life-decisions': 'Create a thought-provoking "Would You Rather" question about important life choices.',
+  'time-travel': 'Create a "Would You Rather" question about different time travel scenarios.',
+  food: 'Create a "Would You Rather" question about different food-related choices.',
+  career: 'Create a "Would You Rather" question about different career paths or work situations.',
+  technology: 'Create a "Would You Rather" question about different technology-related scenarios.',
+  random: 'Create a random and unexpected "Would You Rather" question that could be funny, serious, or thought-provoking.',
+};
+
+export async function POST(request: Request) {
   try {
-    const { category = 'random' } = await req.json();
-    
-    const selectedCategory = category === 'random' 
-      ? categories[Math.floor(Math.random() * categories.length)]
-      : category;
-
-    const prompt = `Generate a creative and engaging "Would You Rather" question with two options. Make it ${selectedCategory.toLowerCase()} themed.
-    Format: {
-      "question": "Would you rather...",
-      "optionA": {
-        "text": "first option",
-        "consequence": "interesting consequence or explanation"
-      },
-      "optionB": {
-        "text": "second option",
-        "consequence": "interesting consequence or explanation"
-      },
-      "funFact": "an interesting fact related to the question"
-    }`;
+    const { category = 'random' } = await request.json();
+    const prompt = categoryPrompts[category as Category] || categoryPrompts.random;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "You are a creative game content generator specializing in creating engaging 'Would You Rather' scenarios."
+          content: `You are a creative "Would You Rather" question generator. Generate questions that are engaging, thought-provoking, and appropriate for all ages. Each question should have two distinct options with clear consequences. Format your response exactly like this:
+          
+Would you rather: [Your question here]
+A. [First option]
+B. [Second option]
+Consequence A: [Consequence of first option]
+Consequence B: [Consequence of second option]
+Fun fact: [An interesting fact about the question or options]`
         },
         {
           role: "user",
           content: prompt
         }
       ],
-      temperature: 0.8,
-      max_tokens: 500
+      temperature: 0.7,
+      max_tokens: 500,
     });
 
-    const response = completion.choices[0]?.message?.content;
+    const response = completion.choices[0].message.content;
     if (!response) {
       throw new Error('No response from OpenAI');
     }
 
-    try {
-      const parsedResponse = JSON.parse(response);
-      return NextResponse.json(parsedResponse);
-    } catch (e) {
-      // If JSON parsing fails, try to extract the content in a more lenient way
-      const questionMatch = response.match(/"question":\s*"([^"]+)"/);
-      const optionAMatch = response.match(/"text":\s*"([^"]+)".*?"consequence":\s*"([^"]+)"/);
-      const optionBMatch = response.match(/"text":\s*"([^"]+)".*?"consequence":\s*"([^"]+)"/g)?.[1];
-      const funFactMatch = response.match(/"funFact":\s*"([^"]+)"/);
-
-      const formattedResponse = {
-        question: questionMatch?.[1] || "Would you rather...",
-        optionA: {
-          text: optionAMatch?.[1] || "Option A",
-          consequence: optionAMatch?.[2] || "Consequence A"
-        },
-        optionB: {
-          text: optionBMatch?.match(/"text":\s*"([^"]+)"/)?.[1] || "Option B",
-          consequence: optionBMatch?.match(/"consequence":\s*"([^"]+)"/)?.[1] || "Consequence B"
-        },
-        funFact: funFactMatch?.[1] || "Interesting fact about this choice..."
-      };
-
-      return NextResponse.json(formattedResponse);
+    // Parse the response into a structured format
+    const lines = response.split('\n').filter(line => line.trim());
+    
+    // Validate the response format
+    if (lines.length < 6) {
+      throw new Error('Invalid response format from OpenAI');
     }
-  } catch {
+
+    const question = lines[0].replace(/^Would you rather:?\s*/i, '').trim();
+    const optionA = lines[1]?.replace(/^A\.\s*/i, '').trim() || '';
+    const optionB = lines[2]?.replace(/^B\.\s*/i, '').trim() || '';
+    const consequenceA = lines[3]?.replace(/^Consequence A:\s*/i, '').trim() || '';
+    const consequenceB = lines[4]?.replace(/^Consequence B:\s*/i, '').trim() || '';
+    const funFact = lines[5]?.replace(/^Fun fact:\s*/i, '').trim() || '';
+
+    // Validate the parsed data
+    if (!question || !optionA || !optionB || !consequenceA || !consequenceB || !funFact) {
+      throw new Error('Missing required fields in response');
+    }
+
+    return NextResponse.json({
+      question,
+      optionA: {
+        text: optionA,
+        consequence: consequenceA
+      },
+      optionB: {
+        text: optionB,
+        consequence: consequenceB
+      },
+      funFact
+    });
+  } catch (error) {
+    console.error('Error generating question:', error);
+    // Return a more detailed error message
     return NextResponse.json(
-      { error: 'Failed to generate question' },
+      { 
+        error: 'Failed to generate question',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

@@ -43,12 +43,11 @@ export default function WouldYouRather({ isEmbedded = false }: WouldYouRatherPro
   const [personalityAnalysis, setPersonalityAnalysis] = useState<PersonalityAnalysis | null>(null);
   const [generating, setGenerating] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category>('funny');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const fetchNewQuestion = React.useCallback(async () => {
     try {
       setGenerating(true);
-      setError(null);
-      
       const response = await fetch('/api/would-you-rather', {
         method: 'POST',
         headers: {
@@ -58,28 +57,30 @@ export default function WouldYouRather({ isEmbedded = false }: WouldYouRatherPro
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch question');
+        const errorData = await response.json();
+        throw new Error(errorData.details || 'Failed to fetch question');
       }
 
-      const newQuestion = await response.json();
+      const data = await response.json();
       
-      // Ensure we have a valid question before updating state
-      if (!newQuestion || !newQuestion.question || !newQuestion.optionA || !newQuestion.optionB) {
-        throw new Error('Invalid question format received');
+      // Validate the response data
+      if (!data.question || !data.optionA || !data.optionB) {
+        throw new Error('Invalid question data received');
       }
 
-      // Update questions state with the new question
-      setQuestions(prev => [...prev, newQuestion]);
-      
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching question:', err);
-      setError('Failed to generate question. Please try again.');
-      setLoading(false);
+      setQuestions(prev => {
+        const newQuestions = [...prev];
+        newQuestions[currentQuestionIndex] = data;
+        return newQuestions;
+      });
+    } catch (error) {
+      console.error('Error fetching question:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch question');
+      // Don't restart the game immediately, let the user see the error
     } finally {
       setGenerating(false);
     }
-  }, [selectedCategory]);
+  }, [currentQuestionIndex, selectedCategory]);
 
   const restartGame = React.useCallback(() => {
     console.log('Restarting game...');
@@ -161,46 +162,42 @@ export default function WouldYouRather({ isEmbedded = false }: WouldYouRatherPro
     return analysis;
   }, []);
 
-  const handleAnswer = React.useCallback(async (answerIndex: 0 | 1) => {
-    // Prevent multiple clicks while processing
-    if (selectedAnswers[currentQuestionIndex] !== null) {
-      return;
-    }
-
-    // Update selected answers first
-    setSelectedAnswers(prev => {
-      const newAnswers = [...prev];
-      newAnswers[currentQuestionIndex] = answerIndex;
-      return newAnswers;
-    });
+  const handleAnswer = React.useCallback(async (answer: 0 | 1) => {
+    if (isProcessing || currentQuestionIndex >= 5) return;
 
     try {
-      // If we're at the last question and need more questions
-      if (currentQuestionIndex === questions.length - 1 && questions.length < 5) {
-        await fetchNewQuestion();
-      }
+      setIsProcessing(true);
+      setSelectedAnswers(prev => {
+        const newAnswers = [...prev];
+        newAnswers[currentQuestionIndex] = answer;
+        return newAnswers;
+      });
 
-      // Wait for the delay before moving to next question
+      // Wait for 3 seconds before moving to next question
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Check if we should move to next question or show results
-      if (currentQuestionIndex < questions.length - 1) {
+      if (currentQuestionIndex < 4) {
         setCurrentQuestionIndex(prev => prev + 1);
-      } else if (questions.length === 5) {
+        // Fetch next question immediately
+        await fetchNewQuestion();
+      } else {
+        // On the last question, analyze personality and show results
         const analysis = analyzePersonality(questions, selectedAnswers);
         setPersonalityAnalysis(analysis);
         setShowResults(true);
-        setShowConfetti(true);
       }
     } catch (error) {
-      console.error('Error in handleAnswer:', error);
-      setError('An error occurred. Please try again.');
+      console.error('Error handling answer:', error);
+      // If there's an error, try to recover by restarting the game
+      restartGame();
+    } finally {
+      setIsProcessing(false);
     }
-  }, [currentQuestionIndex, questions.length, selectedAnswers, fetchNewQuestion, analyzePersonality, questions]);
+  }, [currentQuestionIndex, isProcessing, questions, fetchNewQuestion]);
 
   const handleTouchStart = React.useCallback((e: React.TouchEvent, answerIndex: 0 | 1) => {
     // Remove preventDefault and handle the touch event directly
-    handleAnswer(answerIndex);
+    handleAnswer(answerIndex as 0 | 1);
   }, [handleAnswer]);
 
   // Add effect to handle initial game setup
@@ -221,20 +218,35 @@ export default function WouldYouRather({ isEmbedded = false }: WouldYouRatherPro
     initGame();
   }, [fetchNewQuestion]);
 
-  // Add effect to handle question fetching
-  useEffect(() => {
-    const fetchNextQuestion = async () => {
-      if (questions.length < 5 && currentQuestionIndex === questions.length - 1 && !showResults) {
-        try {
-          await fetchNewQuestion();
-        } catch (error) {
-          console.error('Error fetching next question:', error);
-          setError('Failed to fetch next question. Please try again.');
-        }
+  // Add a recovery effect
+  React.useEffect(() => {
+    const validateGameState = () => {
+      if (currentQuestionIndex >= 5 && !showResults) {
+        console.warn('Invalid game state detected, restarting game');
+        restartGame();
       }
     };
-    fetchNextQuestion();
-  }, [currentQuestionIndex, questions.length, fetchNewQuestion, showResults]);
+
+    validateGameState();
+  }, [currentQuestionIndex, showResults]);
+
+  // Improve question fetching effect
+  React.useEffect(() => {
+    if (!isEmbedded && !showResults && currentQuestionIndex < 5) {
+      const fetchQuestions = async () => {
+        try {
+          for (let i = 0; i < 5; i++) {
+            await fetchNewQuestion();
+          }
+        } catch (error) {
+          console.error('Error fetching initial questions:', error);
+          restartGame();
+        }
+      };
+
+      fetchQuestions();
+    }
+  }, [isEmbedded, showResults, fetchNewQuestion]);
 
   // Remove redundant effects and keep only the essential ones
   const currentQuestion = questions[currentQuestionIndex];
@@ -285,8 +297,8 @@ export default function WouldYouRather({ isEmbedded = false }: WouldYouRatherPro
           {!showResults ? (
             <motion.div
               key="question"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               className="max-w-4xl mx-auto"
             >
@@ -382,55 +394,61 @@ export default function WouldYouRather({ isEmbedded = false }: WouldYouRatherPro
               key="results"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="max-w-2xl mx-auto text-center"
+              className="max-w-2xl mx-auto text-center px-4 flex flex-col min-h-[calc(100vh-4rem)]"
             >
-              <h2 className="text-3xl font-bold text-white mb-8">Game Complete!</h2>
-              
-              {/* Personality Analysis */}
-              {personalityAnalysis && (
+              <div className="flex-1">
+                <h2 className="text-3xl font-bold text-white mb-8">Game Complete!</h2>
+                
+                {/* Personality Analysis */}
+                {personalityAnalysis && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-                  className="bg-gray-800 rounded-xl p-6 mb-8"
-                >
-                  <div className="text-4xl mb-4">{personalityAnalysis.icon}</div>
-                  <h3 className="text-2xl font-bold text-white mb-2">{personalityAnalysis.title}</h3>
-                  <p className="text-gray-300 mb-4">{personalityAnalysis.description}</p>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {personalityAnalysis.traits.map((trait, index) => (
-                      <span
-                        key={index}
-                        className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm"
-                      >
-                        {trait}
-                      </span>
+                    className="bg-gray-800 rounded-xl p-4 sm:p-6 mb-6 sm:mb-8"
+                  >
+                    <div className="text-4xl mb-4">{personalityAnalysis.icon}</div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">{personalityAnalysis.title}</h3>
+                    <p className="text-gray-300 mb-4 text-sm sm:text-base">{personalityAnalysis.description}</p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {personalityAnalysis.traits.map((trait, index) => (
+                        <span
+                          key={index}
+                          className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm"
+                        >
+                          {trait}
+                        </span>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Choices Summary */}
+                <div className="bg-gray-800 rounded-xl p-4 sm:p-6 mb-6 sm:mb-8 overflow-y-auto max-h-[50vh]">
+                  <h3 className="text-lg sm:text-xl font-semibold text-white mb-4">Your Choices:</h3>
+                  <div className="space-y-4">
+                    {questions.map((question, index) => (
+                      <div key={index} className="text-left bg-gray-700 rounded-lg p-3 sm:p-4">
+                        <p className="text-gray-300 mb-2 text-sm sm:text-base">{question.question}</p>
+                        <p className="text-blue-400 font-medium text-sm sm:text-base">
+                          You chose: {selectedAnswers[index] === 0 ? question.optionA.text : question.optionB.text}
+                        </p>
+                        <p className="text-gray-400 text-xs sm:text-sm mt-1">
+                          {selectedAnswers[index] === 0 ? question.optionA.consequence : question.optionB.consequence}
+                        </p>
+                      </div>
                     ))}
                   </div>
-                </motion.div>
-              )}
-
-              {/* Choices Summary */}
-              <div className="bg-gray-800 rounded-xl p-6 mb-8">
-                <h3 className="text-xl font-semibold text-white mb-4">Your Choices:</h3>
-                {questions.map((question, index) => (
-                  <div key={index} className="mb-6 last:mb-0">
-                    <p className="text-gray-400 mb-2">{question.question}</p>
-                    <p className="text-blue-400">
-                      You chose: {selectedAnswers[index] === 0 ? question.optionA.text : question.optionB.text}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {selectedAnswers[index] === 0 ? question.optionA.consequence : question.optionB.consequence}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={restartGame}
-                className="px-8 py-4 bg-blue-500 text-white rounded-xl font-bold text-xl transition-all transform hover:scale-105 hover:bg-blue-600 flex items-center justify-center mx-auto"
-              >
-                <FaRedo className="mr-2" /> Play Again
-              </button>
+                </div>
+            </div>
+            
+              <div className="sticky bottom-0 left-0 right-0 bg-gray-900 py-4 mt-4">
+                <button
+                  onClick={restartGame}
+                  className="w-full sm:w-auto px-8 py-4 bg-blue-500 text-white rounded-xl font-bold text-lg sm:text-xl transition-all transform hover:scale-105 hover:bg-blue-600 flex items-center justify-center mx-auto"
+                >
+                  <FaRedo className="mr-2" /> Play Again
+                </button>
+            </div>
           </motion.div>
         )}
         </AnimatePresence>
